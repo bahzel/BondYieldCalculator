@@ -27,8 +27,8 @@ A Java application that analyzes CSV trading data to identify Greek government b
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/bahzel/RenditeberechungStaatsanleihen.git
-cd RenditeberechungStaatsanleihen
+git clone https://github.com/bahzel/BondYieldCalculator.git
+cd BondYieldCalculator
 ```
 
 2. Compile the project:

@@ -81,40 +81,74 @@ public class CsvReader {
 
     /**
      * Liest die GZIP-komprimierte CSV-Datei und gibt die neuesten Einträge pro ISIN zurück
+     * Optimiert für bessere Performance
      */
     public static Map<String, AnleihenEintrag> readCsvFile(String filePath) throws IOException {
         Map<String, AnleihenEintrag> latestEntries = new HashMap<>();
 
+        System.out.println("Starte CSV-Verarbeitung...");
+        long startTime = System.currentTimeMillis();
+        int lineCount = 0;
+
         try (FileInputStream fis = new FileInputStream(filePath);
-             GZIPInputStream gzis = new GZIPInputStream(fis);
-             InputStreamReader isr = new InputStreamReader(gzis, "UTF-8");
-             BufferedReader reader = new BufferedReader(isr)) {
+             GZIPInputStream gzis = new GZIPInputStream(fis, 8192); // Größerer Buffer
+             InputStreamReader isr = new InputStreamReader(gzis, java.nio.charset.StandardCharsets.UTF_8);
+             BufferedReader reader = new BufferedReader(isr, 16384)) { // Größerer Buffer
 
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] columns = line.split(",");
+                lineCount++;
 
-                // Prüfen ob die Zeile vollständig ist (mindestens 7 Spalten)
-                if (columns.length >= 7) {
-                    String isin = columns[0].trim();
-                    String timestamp = columns[1].trim();
-                    String currency = columns[2].trim();
-                    String bidPrice = columns[3].trim();
-                    String bidSize = columns[4].trim();
-                    String askPrice = columns[5].trim();
-                    String askSize = columns[6].trim();
+                // Progress-Info alle 10000 Zeilen
+                if (lineCount % 10000 == 0) {
+                    System.out.println("Verarbeitete Zeilen: " + lineCount + " (Unique ISINs: " + latestEntries.size() + ")");
+                }
 
-                    // Prüfen ob diese ISIN noch nicht existiert oder der Zeitstempel neuer ist
-                    if (!latestEntries.containsKey(isin) ||
-                        timestamp.compareTo(latestEntries.get(isin).getTimestamp()) > 0) {
+                // Schnellere String-Verarbeitung: indexOf statt split für bessere Performance
+                if (line.length() < 10) continue; // Skip sehr kurze Zeilen
 
-                        AnleihenEintrag eintrag = new AnleihenEintrag(isin, timestamp, currency,
-                                                                     bidPrice, bidSize, askPrice, askSize);
-                        latestEntries.put(isin, eintrag);
-                    }
+                // Finde Komma-Positionen (effizienter als split)
+                int[] commaPositions = new int[7];
+                int commaCount = 0;
+                int pos = 0;
+
+                while (pos < line.length() && commaCount < 6) {
+                    int nextComma = line.indexOf(',', pos);
+                    if (nextComma == -1) break;
+                    commaPositions[commaCount++] = nextComma;
+                    pos = nextComma + 1;
+                }
+
+                // Prüfen ob wir mindestens 6 Kommas haben (7 Spalten)
+                if (commaCount < 6) continue;
+
+                // Extrahiere Spalten direkt ohne split
+                String isin = line.substring(0, commaPositions[0]).trim();
+                String timestamp = line.substring(commaPositions[0] + 1, commaPositions[1]).trim();
+                String currency = line.substring(commaPositions[1] + 1, commaPositions[2]).trim();
+                String bidPrice = line.substring(commaPositions[2] + 1, commaPositions[3]).trim();
+                String bidSize = line.substring(commaPositions[3] + 1, commaPositions[4]).trim();
+                String askPrice = line.substring(commaPositions[4] + 1, commaPositions[5]).trim();
+                String askSize = line.substring(commaPositions[5] + 1).trim();
+
+                // Skip leere ISINs
+                if (isin.isEmpty()) continue;
+
+                // Prüfen ob diese ISIN noch nicht existiert oder der Zeitstempel neuer ist
+                AnleihenEintrag existing = latestEntries.get(isin);
+                if (existing == null || timestamp.compareTo(existing.getTimestamp()) > 0) {
+                    AnleihenEintrag eintrag = new AnleihenEintrag(isin, timestamp, currency,
+                                                                 bidPrice, bidSize, askPrice, askSize);
+                    latestEntries.put(isin, eintrag);
                 }
             }
         }
+
+        long endTime = System.currentTimeMillis();
+        System.out.println("CSV-Verarbeitung abgeschlossen:");
+        System.out.println("  - Verarbeitete Zeilen: " + lineCount);
+        System.out.println("  - Unique ISINs: " + latestEntries.size());
+        System.out.println("  - Verarbeitungszeit: " + (endTime - startTime) + "ms");
 
         return latestEntries;
     }
