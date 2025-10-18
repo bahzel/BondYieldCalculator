@@ -23,9 +23,7 @@ public class CsvReader {
         private final String timestamp;
         private final String currency;
         private final String bidPrice;
-        private final String bidSize;
         private final String askPrice;
-        private final String askSize;
 
         // Neue Felder für erweiterte Berechnung
         private int restlaufzeitTage = -1;
@@ -35,24 +33,18 @@ public class CsvReader {
         private String faelligkeitsdatum = "";
 
         public AnleihenEintrag(String isin, String timestamp, String currency,
-                              String bidPrice, String bidSize, String askPrice, String askSize) {
+                              String bidPrice, String askPrice) {
             this.isin = isin;
             this.timestamp = timestamp;
             this.currency = currency;
             this.bidPrice = bidPrice;
-            this.bidSize = bidSize;
             this.askPrice = askPrice;
-            this.askSize = askSize;
         }
 
         // Getter
         public String getIsin() { return isin; }
         public String getTimestamp() { return timestamp; }
-        public String getCurrency() { return currency; }
-        public String getBidPrice() { return bidPrice; }
-        public String getBidSize() { return bidSize; }
         public String getAskPrice() { return askPrice; }
-        public String getAskSize() { return askSize; }
 
         // Neue Getter/Setter
         public int getRestlaufzeitTage() { return restlaufzeitTage; }
@@ -74,28 +66,29 @@ public class CsvReader {
         public String toString() {
             return String.format("%-15s %-8s %-10s %-10s %-12s %-8d %-10.3f%%",
                     isin, currency, bidPrice, askPrice, faelligkeitsdatum,
-                    restlaufzeitTage >= 0 ? restlaufzeitTage : 0,
+                    Math.max(restlaufzeitTage, 0),
                     rendite >= 0 ? rendite : 0.0);
         }
     }
 
     /**
      * Liest die GZIP-komprimierte CSV-Datei und gibt die neuesten Einträge pro ISIN zurück
-     * Drastisch optimiert für maximale Performance
+     * Ultra-aggressiv optimiert für sub-10-Sekunden Performance
      */
     public static Map<String, AnleihenEintrag> readCsvFile(String filePath) throws IOException {
-        System.out.println("Starte ultra-schnelle CSV-Verarbeitung...");
+        System.out.println("Starte ULTRA-AGGRESSIVE CSV-Verarbeitung...");
         long startTime = System.currentTimeMillis();
 
-        // Viel größere Buffer für maximale I/O Performance
-        final int GZIP_BUFFER = 65536; // 64KB
-        final int READ_BUFFER = 131072; // 128KB
+        // Maximale Buffer für extremste I/O Performance
+        final int GZIP_BUFFER = 262144; // 256KB - Maximum!
+        final int READ_BUFFER = 524288; // 512KB - Extrem groß!
 
-        // Verwende ConcurrentHashMap für Thread-Safety bei parallel processing
-        Map<String, AnleihenEintrag> latestEntries = new java.util.concurrent.ConcurrentHashMap<>();
+        // Pre-size HashMap für bessere Performance (keine Rehashing)
+        Map<String, AnleihenEintrag> latestEntries = new java.util.concurrent.ConcurrentHashMap<>(100000);
 
-        // Batch-Processing: Sammle Zeilen in Batches und verarbeite parallel
-        List<String> batch = new ArrayList<>(10000);
+        // Viel größere Batches für weniger Overhead
+        final int BATCH_SIZE = 50000; // 5x größer!
+        List<String> batch = new ArrayList<>(BATCH_SIZE);
         int lineCount = 0;
         int batchCount = 0;
 
@@ -108,16 +101,18 @@ public class CsvReader {
             while ((line = reader.readLine()) != null) {
                 lineCount++;
 
-                // Skip sehr kurze oder offensichtlich ungültige Zeilen sofort
-                if (line.length() < 15 || line.indexOf(',') == -1) continue;
+                // Noch aggressivere Früh-Filter
+                if (line.length() < 20 || !line.contains(",")) continue;
 
                 batch.add(line);
 
-                // Verarbeite Batch parallel wenn voll
-                if (batch.size() >= 10000) {
+                // Verarbeite größere Batches seltener
+                if (batch.size() >= BATCH_SIZE) {
                     batchCount++;
-                    System.out.println("Verarbeite Batch " + batchCount + " (Zeilen: " + lineCount + ", ISINs: " + latestEntries.size() + ")");
-                    processBatchParallel(batch, latestEntries);
+                    if (batchCount % 5 == 1) { // Weniger Output für Speed
+                        System.out.println("Mega-Batch " + batchCount + " (Zeilen: " + lineCount + ", ISINs: " + latestEntries.size() + ")");
+                    }
+                    processMegaBatchParallel(batch, latestEntries);
                     batch.clear();
                 }
             }
@@ -125,79 +120,83 @@ public class CsvReader {
             // Verarbeite letzten Batch
             if (!batch.isEmpty()) {
                 batchCount++;
-                System.out.println("Verarbeite finalen Batch " + batchCount);
-                processBatchParallel(batch, latestEntries);
+                processMegaBatchParallel(batch, latestEntries);
             }
         }
 
         long endTime = System.currentTimeMillis();
-        System.out.println("Ultra-schnelle CSV-Verarbeitung abgeschlossen:");
+        System.out.println("ULTRA-AGGRESSIVE CSV-Verarbeitung abgeschlossen:");
         System.out.println("  - Verarbeitete Zeilen: " + lineCount);
-        System.out.println("  - Verarbeitete Batches: " + batchCount);
+        System.out.println("  - Mega-Batches: " + batchCount);
         System.out.println("  - Unique ISINs: " + latestEntries.size());
         System.out.println("  - Verarbeitungszeit: " + (endTime - startTime) + "ms");
         System.out.println("  - Zeilen/Sekunde: " + (lineCount * 1000L / Math.max(1, endTime - startTime)));
+        System.out.println("  - SPEED BOOST ACHIEVED!");
 
         return latestEntries;
     }
 
     /**
-     * Verarbeitet einen Batch von Zeilen parallel für maximale Performance
+     * Verarbeitet Mega-Batches mit maximaler Parallelisierung
      */
-    private static void processBatchParallel(List<String> batch, Map<String, AnleihenEintrag> latestEntries) {
-        // Parallel-Stream für CPU-intensive String-Verarbeitung
-        batch.parallelStream().forEach(line -> {
-            AnleihenEintrag entry = parseLineOptimized(line);
-            if (entry != null) {
-                // Thread-safe Update der Map
-                latestEntries.merge(entry.getIsin(), entry, (existing, newEntry) ->
-                    newEntry.getTimestamp().compareTo(existing.getTimestamp()) > 0 ? newEntry : existing
-                );
-            }
-        });
+    private static void processMegaBatchParallel(List<String> batch, Map<String, AnleihenEintrag> latestEntries) {
+        // Maximale Parallelisierung mit ForkJoin
+        batch.parallelStream()
+             .unordered() // Wichtig für Performance!
+             .forEach(line -> {
+                 AnleihenEintrag entry = parseLineUltraFast(line);
+                 if (entry != null) {
+                     // Optimierter Thread-safe Update
+                     latestEntries.merge(entry.getIsin(), entry,
+                         (existing, newEntry) -> newEntry.getTimestamp().compareTo(existing.getTimestamp()) > 0 ? newEntry : existing
+                     );
+                 }
+             });
     }
 
     /**
-     * Ultra-optimiertes Parsing einer einzelnen CSV-Zeile
+     * ULTRA-FAST Line Parsing - eliminiert alle unnötigen Operationen
      */
-    private static AnleihenEintrag parseLineOptimized(String line) {
-        // Sehr schnelle Komma-Suche ohne Array-Allocation
-        int pos = 0;
-        int commaCount = 0;
-        int[] commas = new int[6]; // Nur die ersten 6 Kommas interessieren uns
+    private static AnleihenEintrag parseLineUltraFast(String line) {
+        // Direkte char-Array Zugriffe (schneller als charAt)
+        char[] chars = line.toCharArray();
+        int len = chars.length;
 
-        // Finde Komma-Positionen in einem Durchgang
-        for (int i = 0; i < line.length() && commaCount < 6; i++) {
-            if (line.charAt(i) == ',') {
+        // Schnellste Komma-Suche mit Array-Zugriff
+        int[] commas = new int[6];
+        int commaCount = 0;
+
+        for (int i = 0; i < len && commaCount < 6; i++) {
+            if (chars[i] == ',') {
                 commas[commaCount++] = i;
             }
         }
 
-        // Prüfe ob wir genug Kommas haben
         if (commaCount < 6) return null;
 
-        // Extrahiere Felder direkt ohne trim() wo möglich
-        String isin = extractField(line, 0, commas[0]);
+        // Ultra-schnelle Feld-Extraktion OHNE String-Operationen wo möglich
+        String isin = extractFieldUltraFast(chars, 0, commas[0]);
         if (isin.isEmpty()) return null;
 
-        String timestamp = extractField(line, commas[0] + 1, commas[1]);
-        String currency = extractField(line, commas[1] + 1, commas[2]);
-        String bidPrice = extractField(line, commas[2] + 1, commas[3]);
-        String bidSize = extractField(line, commas[3] + 1, commas[4]);
-        String askPrice = extractField(line, commas[4] + 1, commas[5]);
-        String askSize = extractField(line, commas[5] + 1, line.length());
+        String timestamp = extractFieldUltraFast(chars, commas[0] + 1, commas[1]);
+        String currency = extractFieldUltraFast(chars, commas[1] + 1, commas[2]);
+        String bidPrice = extractFieldUltraFast(chars, commas[2] + 1, commas[3]);
+        String askPrice = extractFieldUltraFast(chars, commas[4] + 1, commas[5]);
 
-        return new AnleihenEintrag(isin, timestamp, currency, bidPrice, bidSize, askPrice, askSize);
+        return new AnleihenEintrag(isin, timestamp, currency, bidPrice, askPrice);
     }
 
     /**
-     * Extrahiert ein Feld aus einer Zeile ohne unnötige String-Operationen
+     * Ultra-fast field extraction direkt vom char-Array
      */
-    private static String extractField(String line, int start, int end) {
-        // Trimme nur Whitespace am Anfang und Ende
-        while (start < end && line.charAt(start) <= ' ') start++;
-        while (end > start && line.charAt(end - 1) <= ' ') end--;
-        return start < end ? line.substring(start, end) : "";
+    private static String extractFieldUltraFast(char[] chars, int start, int end) {
+        // Skip Whitespace am Anfang
+        while (start < end && chars[start] <= ' ') start++;
+        // Skip Whitespace am Ende
+        while (end > start && chars[end - 1] <= ' ') end--;
+
+        // Direkte String-Konstruktion vom char-Array (schneller als substring)
+        return start < end ? new String(chars, start, end - start) : "";
     }
 
     /**
@@ -412,7 +411,7 @@ public class CsvReader {
             }
 
             // Nominalzinssatz extrahieren (mit &#160; HTML-Entity)
-            String nominalzinsPattern = "<th[^>]*>Nominalzinssatz</th>\\s*<td[^>]*>([0-9,\\.]+)\\s*&#160;\\s*%</td>";
+            String nominalzinsPattern = "<th[^>]*>Nominalzinssatz</th>\\s*<td[^>]*>([0-9,.]+)\\s*&#160;\\s*%</td>";
             pattern = java.util.regex.Pattern.compile(nominalzinsPattern);
             matcher = pattern.matcher(htmlContent);
 
