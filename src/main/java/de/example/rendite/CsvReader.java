@@ -11,29 +11,29 @@ import java.util.*;
 import java.util.zip.GZIPInputStream;
 
 /**
- * Klasse zum Lesen und Verarbeiten der Anleihen-CSV-Datei
+ * Class for reading and processing bond CSV files
  */
 public class CsvReader {
 
     /**
-     * Datenklasse für einen Anleihen-Eintrag
+     * Data class for a bond entry
      */
-    public static class AnleihenEintrag {
+    public static class BondEntry {
         private final String isin;
         private final String timestamp;
         private final String currency;
         private final String bidPrice;
         private final String askPrice;
 
-        // Neue Felder für erweiterte Berechnung
-        private int restlaufzeitTage = -1;
-        private double rendite = -1.0;
-        private double briefkurs = -1.0;
-        private double nominalzins = -1.0;
-        private String faelligkeitsdatum = "";
+        // New fields for extended calculation
+        private int remainingDays = -1;
+        private double yield = -1.0;
+        private double askPriceValue = -1.0;
+        private double nominalInterestRate = -1.0;
+        private String maturityDate = "";
 
-        public AnleihenEintrag(String isin, String timestamp, String currency,
-                              String bidPrice, String askPrice) {
+        public BondEntry(String isin, String timestamp, String currency,
+                        String bidPrice, String askPrice) {
             this.isin = isin;
             this.timestamp = timestamp;
             this.currency = currency;
@@ -41,53 +41,53 @@ public class CsvReader {
             this.askPrice = askPrice;
         }
 
-        // Getter
+        // Getters
         public String getIsin() { return isin; }
         public String getTimestamp() { return timestamp; }
         public String getAskPrice() { return askPrice; }
 
-        // Neue Getter/Setter
-        public int getRestlaufzeitTage() { return restlaufzeitTage; }
-        public void setRestlaufzeitTage(int restlaufzeitTage) { this.restlaufzeitTage = restlaufzeitTage; }
+        // New Getters/Setters
+        public int getRemainingDays() { return remainingDays; }
+        public void setRemainingDays(int remainingDays) { this.remainingDays = remainingDays; }
 
-        public double getRendite() { return rendite; }
-        public void setRendite(double rendite) { this.rendite = rendite; }
+        public double getYield() { return yield; }
+        public void setYield(double yield) { this.yield = yield; }
 
-        public double getBriefkurs() { return briefkurs; }
-        public void setBriefkurs(double briefkurs) { this.briefkurs = briefkurs; }
+        public double getAskPriceValue() { return askPriceValue; }
+        public void setAskPriceValue(double askPriceValue) { this.askPriceValue = askPriceValue; }
 
-        public double getNominalzins() { return nominalzins; }
-        public void setNominalzins(double nominalzins) { this.nominalzins = nominalzins; }
+        public double getNominalInterestRate() { return nominalInterestRate; }
+        public void setNominalInterestRate(double nominalInterestRate) { this.nominalInterestRate = nominalInterestRate; }
 
-        public String getFaelligkeitsdatum() { return faelligkeitsdatum; }
-        public void setFaelligkeitsdatum(String faelligkeitsdatum) { this.faelligkeitsdatum = faelligkeitsdatum; }
+        public String getMaturityDate() { return maturityDate; }
+        public void setMaturityDate(String maturityDate) { this.maturityDate = maturityDate; }
 
         @Override
         public String toString() {
             return String.format("%-15s %-8s %-10s %-10s %-12s %-8d %-10.3f%%",
-                    isin, currency, bidPrice, askPrice, faelligkeitsdatum,
-                    Math.max(restlaufzeitTage, 0),
-                    rendite >= 0 ? rendite : 0.0);
+                    isin, currency, bidPrice, askPrice, maturityDate,
+                    Math.max(remainingDays, 0),
+                    yield >= 0 ? yield : 0.0);
         }
     }
 
     /**
-     * Liest die GZIP-komprimierte CSV-Datei und gibt die neuesten Einträge pro ISIN zurück
-     * Ultra-aggressiv optimiert für sub-10-Sekunden Performance
+     * Reads GZIP-compressed CSV file and returns the latest entries per ISIN
+     * Ultra-aggressively optimized for sub-10-second performance
      */
-    public static Map<String, AnleihenEintrag> readCsvFile(String filePath) throws IOException {
-        System.out.println("Starte ULTRA-AGGRESSIVE CSV-Verarbeitung...");
+    public static Map<String, BondEntry> readCsvFile(String filePath) throws IOException {
+        System.out.println("Starting ULTRA-AGGRESSIVE CSV processing...");
         long startTime = System.currentTimeMillis();
 
-        // Maximale Buffer für extremste I/O Performance
+        // Maximum buffers for extreme I/O performance
         final int GZIP_BUFFER = 262144; // 256KB - Maximum!
-        final int READ_BUFFER = 524288; // 512KB - Extrem groß!
+        final int READ_BUFFER = 524288; // 512KB - Extremely large!
 
-        // Pre-size HashMap für bessere Performance (keine Rehashing)
-        Map<String, AnleihenEintrag> latestEntries = new java.util.concurrent.ConcurrentHashMap<>(100000);
+        // Pre-size HashMap for better performance (no rehashing)
+        Map<String, BondEntry> latestEntries = new java.util.concurrent.ConcurrentHashMap<>(100000);
 
-        // Viel größere Batches für weniger Overhead
-        final int BATCH_SIZE = 50000; // 5x größer!
+        // Much larger batches for less overhead
+        final int BATCH_SIZE = 50000; // 5x larger!
         List<String> batch = new ArrayList<>(BATCH_SIZE);
         int lineCount = 0;
         int batchCount = 0;
@@ -101,23 +101,23 @@ public class CsvReader {
             while ((line = reader.readLine()) != null) {
                 lineCount++;
 
-                // Noch aggressivere Früh-Filter
+                // Even more aggressive early filtering
                 if (line.length() < 20 || !line.contains(",")) continue;
 
                 batch.add(line);
 
-                // Verarbeite größere Batches seltener
+                // Process larger batches less frequently
                 if (batch.size() >= BATCH_SIZE) {
                     batchCount++;
-                    if (batchCount % 5 == 1) { // Weniger Output für Speed
-                        System.out.println("Mega-Batch " + batchCount + " (Zeilen: " + lineCount + ", ISINs: " + latestEntries.size() + ")");
+                    if (batchCount % 5 == 1) { // Less output for speed
+                        System.out.println("Mega-Batch " + batchCount + " (Lines: " + lineCount + ", ISINs: " + latestEntries.size() + ")");
                     }
                     processMegaBatchParallel(batch, latestEntries);
                     batch.clear();
                 }
             }
 
-            // Verarbeite letzten Batch
+            // Process last batch
             if (!batch.isEmpty()) {
                 batchCount++;
                 processMegaBatchParallel(batch, latestEntries);
@@ -125,28 +125,28 @@ public class CsvReader {
         }
 
         long endTime = System.currentTimeMillis();
-        System.out.println("ULTRA-AGGRESSIVE CSV-Verarbeitung abgeschlossen:");
-        System.out.println("  - Verarbeitete Zeilen: " + lineCount);
-        System.out.println("  - Mega-Batches: " + batchCount);
+        System.out.println("ULTRA-AGGRESSIVE CSV processing completed:");
+        System.out.println("  - Processed lines: " + lineCount);
+        System.out.println("  - Mega-batches: " + batchCount);
         System.out.println("  - Unique ISINs: " + latestEntries.size());
-        System.out.println("  - Verarbeitungszeit: " + (endTime - startTime) + "ms");
-        System.out.println("  - Zeilen/Sekunde: " + (lineCount * 1000L / Math.max(1, endTime - startTime)));
+        System.out.println("  - Processing time: " + (endTime - startTime) + "ms");
+        System.out.println("  - Lines/second: " + (lineCount * 1000L / Math.max(1, endTime - startTime)));
         System.out.println("  - SPEED BOOST ACHIEVED!");
 
         return latestEntries;
     }
 
     /**
-     * Verarbeitet Mega-Batches mit maximaler Parallelisierung
+     * Processes mega-batches with maximum parallelization
      */
-    private static void processMegaBatchParallel(List<String> batch, Map<String, AnleihenEintrag> latestEntries) {
-        // Maximale Parallelisierung mit ForkJoin
+    private static void processMegaBatchParallel(List<String> batch, Map<String, BondEntry> latestEntries) {
+        // Maximum parallelization with ForkJoin
         batch.parallelStream()
-             .unordered() // Wichtig für Performance!
+             .unordered() // Important for performance!
              .forEach(line -> {
-                 AnleihenEintrag entry = parseLineUltraFast(line);
+                 BondEntry entry = parseLineUltraFast(line);
                  if (entry != null) {
-                     // Optimierter Thread-safe Update
+                     // Optimized thread-safe update
                      latestEntries.merge(entry.getIsin(), entry,
                          (existing, newEntry) -> newEntry.getTimestamp().compareTo(existing.getTimestamp()) > 0 ? newEntry : existing
                      );
@@ -155,14 +155,14 @@ public class CsvReader {
     }
 
     /**
-     * ULTRA-FAST Line Parsing - eliminiert alle unnötigen Operationen
+     * ULTRA-FAST Line Parsing - eliminates all unnecessary operations
      */
-    private static AnleihenEintrag parseLineUltraFast(String line) {
-        // Direkte char-Array Zugriffe (schneller als charAt)
+    private static BondEntry parseLineUltraFast(String line) {
+        // Direct char-array access (faster than charAt)
         char[] chars = line.toCharArray();
         int len = chars.length;
 
-        // Schnellste Komma-Suche mit Array-Zugriff
+        // Fastest comma search with array access
         int[] commas = new int[6];
         int commaCount = 0;
 
@@ -174,7 +174,7 @@ public class CsvReader {
 
         if (commaCount < 6) return null;
 
-        // Ultra-schnelle Feld-Extraktion OHNE String-Operationen wo möglich
+        // Ultra-fast field extraction WITHOUT string operations where possible
         String isin = extractFieldUltraFast(chars, 0, commas[0]);
         if (isin.isEmpty()) return null;
 
@@ -183,63 +183,63 @@ public class CsvReader {
         String bidPrice = extractFieldUltraFast(chars, commas[2] + 1, commas[3]);
         String askPrice = extractFieldUltraFast(chars, commas[4] + 1, commas[5]);
 
-        return new AnleihenEintrag(isin, timestamp, currency, bidPrice, askPrice);
+        return new BondEntry(isin, timestamp, currency, bidPrice, askPrice);
     }
 
     /**
-     * Ultra-fast field extraction direkt vom char-Array
+     * Ultra-fast field extraction directly from char array
      */
     private static String extractFieldUltraFast(char[] chars, int start, int end) {
-        // Skip Whitespace am Anfang
+        // Skip whitespace at beginning
         while (start < end && chars[start] <= ' ') start++;
-        // Skip Whitespace am Ende
+        // Skip whitespace at end
         while (end > start && chars[end - 1] <= ' ') end--;
 
-        // Direkte String-Konstruktion vom char-Array (schneller als substring)
+        // Direct string construction from char array (faster than substring)
         return start < end ? new String(chars, start, end - start) : "";
     }
 
     /**
-     * Führt eine HTTP-Anfrage mit Retry-Mechanismus bei Timeouts durch
+     * Executes HTTP request with retry mechanism for timeouts
      */
     public static HttpResponse<String> sendRequestWithRetry(HttpClient httpClient, HttpRequest request, int maxRetries) {
         int attempt = 0;
         while (attempt < maxRetries) {
             try {
                 attempt++;
-                System.out.println("  -> Versuch " + attempt + "/" + maxRetries);
+                System.out.println("  -> Attempt " + attempt + "/" + maxRetries);
                 return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             } catch (java.net.http.HttpTimeoutException e) {
-                System.out.println("  -> Timeout bei Versuch " + attempt + "/" + maxRetries);
+                System.out.println("  -> Timeout at attempt " + attempt + "/" + maxRetries);
                 if (attempt >= maxRetries) {
-                    System.err.println("  -> Alle " + maxRetries + " Versuche fehlgeschlagen wegen Timeout");
-                    throw new RuntimeException("HTTP Timeout nach " + maxRetries + " Versuchen", e);
+                    System.err.println("  -> All " + maxRetries + " attempts failed due to timeout");
+                    throw new RuntimeException("HTTP timeout after " + maxRetries + " attempts", e);
                 }
-                // Warten vor nächstem Versuch (exponential backoff)
+                // Wait before next attempt (exponential backoff)
                 try {
                     int waitTime = 2000 * attempt; // 2s, 4s, 6s, etc.
-                    System.out.println("  -> Warte " + waitTime + "ms vor nächstem Versuch...");
+                    System.out.println("  -> Waiting " + waitTime + "ms before next attempt...");
                     Thread.sleep(waitTime);
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("Unterbrochen während Retry-Wartezeit", ie);
+                    throw new RuntimeException("Interrupted during retry wait time", ie);
                 }
             } catch (Exception e) {
-                // Andere Fehler (nicht Timeout) sofort weiterwerfen
-                throw new RuntimeException("HTTP Fehler: " + e.getMessage(), e);
+                // Other errors (not timeout) throw immediately
+                throw new RuntimeException("HTTP error: " + e.getMessage(), e);
             }
         }
-        throw new RuntimeException("Unerwarteter Fehler im Retry-Mechanismus");
+        throw new RuntimeException("Unexpected error in retry mechanism");
     }
 
     /**
-     * Prüft ob eine ISIN eine Anleihe ist und extrahiert die Anleihen-Daten
+     * Checks if an ISIN is a bond and extracts bond data
      */
-    public static AnleihenEintrag isAnleiheUndExtrahiereDaten(String isin, HttpClient httpClient, AnleihenEintrag eintrag) {
+    public static BondEntry isBondAndExtractData(String isin, HttpClient httpClient, BondEntry entry) {
         try {
-            // Zuerst die Hauptseite besuchen um Cookies/Session zu erhalten
+            // First visit main page to get cookies/session
             String mainUrl = "https://www.comdirect.de/";
-            System.out.println("Besuche Hauptseite für Session: " + mainUrl);
+            System.out.println("Visiting main page for session: " + mainUrl);
 
             HttpRequest mainRequest = HttpRequest.newBuilder()
                     .uri(URI.create(mainUrl))
@@ -250,12 +250,12 @@ public class CsvReader {
 
             httpClient.send(mainRequest, HttpResponse.BodyHandlers.ofString());
 
-            // Kurz warten
+            // Wait briefly
             Thread.sleep(500);
 
-            // Jetzt die Anleihen-Seite besuchen
+            // Now visit the bond page
             String url = "https://www.comdirect.de/inf/anleihen/" + isin;
-            System.out.println("Prüfe ISIN: " + isin + " -> URL: " + url);
+            System.out.println("Checking ISIN: " + isin + " -> URL: " + url);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
@@ -268,25 +268,25 @@ public class CsvReader {
             HttpResponse<String> response = sendRequestWithRetry(httpClient, request, 3);
 
             int statusCode = response.statusCode();
-            boolean isAnleihe = statusCode == 200;
+            boolean isBond = statusCode == 200;
 
-            System.out.println("  -> HTTP Status: " + statusCode + " -> " + (isAnleihe ? "IST Anleihe" : "KEINE Anleihe"));
+            System.out.println("  -> HTTP Status: " + statusCode + " -> " + (isBond ? "IS bond" : "NOT a bond"));
 
-            if (isAnleihe) {
-                // HTML-Content parsen und Daten extrahieren
+            if (isBond) {
+                // Parse HTML content and extract data
                 String htmlContent = response.body();
-                extractAnleihenDaten(eintrag, htmlContent);
+                extractBondData(entry, htmlContent);
 
-                System.out.println("  -> Fälligkeit: " + eintrag.getFaelligkeitsdatum());
-                System.out.println("  -> Restlaufzeit: " + eintrag.getRestlaufzeitTage() + " Tage");
-                System.out.println("  -> Nominalzins: " + eintrag.getNominalzins() + "%");
-                System.out.println("  -> Briefkurs (aus CSV): " + eintrag.getBriefkurs());
-                System.out.println("  -> Berechnete Rendite: " + String.format("%.3f", eintrag.getRendite()) + "%");
+                System.out.println("  -> Maturity: " + entry.getMaturityDate());
+                System.out.println("  -> Remaining days: " + entry.getRemainingDays() + " days");
+                System.out.println("  -> Nominal interest rate: " + entry.getNominalInterestRate() + "%");
+                System.out.println("  -> Ask price (from CSV): " + entry.getAskPriceValue());
+                System.out.println("  -> Calculated yield: " + String.format("%.3f", entry.getYield()) + "%");
 
-                return eintrag;
+                return entry;
             }
 
-            // Debug: Bei 401 die Response-Headers anzeigen
+            // Debug: Show response headers for 401
             if (statusCode == 401) {
                 System.out.println("  -> 401 Response Headers:");
                 response.headers().map().forEach((key, value) ->
@@ -296,87 +296,87 @@ public class CsvReader {
             return null;
 
         } catch (Exception e) {
-            // Bei Fehlern nehmen wir an, dass es keine Anleihe ist
-            System.err.println("Fehler beim Prüfen der ISIN " + isin + ": " + e.getMessage());
+            // On errors, assume it's not a bond
+            System.err.println("Error checking ISIN " + isin + ": " + e.getMessage());
             return null;
         }
     }
 
     /**
-     * Filtert die Einträge und behält nur Anleihen
+     * Filters entries and keeps only bonds
      */
-    public static List<AnleihenEintrag> filterAnleihen(Map<String, AnleihenEintrag> entries) {
-        List<AnleihenEintrag> anleihen = new ArrayList<>();
+    public static List<BondEntry> filterBonds(Map<String, BondEntry> entries) {
+        List<BondEntry> bonds = new ArrayList<>();
 
-        // HTTP-Client mit Cookie-Management
+        // HTTP client with cookie management
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .followRedirects(HttpClient.Redirect.NORMAL)
-                .cookieHandler(new java.net.CookieManager()) // Automatisches Cookie-Management
+                .cookieHandler(new java.net.CookieManager()) // Automatic cookie management
                 .build();
 
         int total = entries.size();
         int current = 0;
 
-        System.out.println("Prüfe " + total + " ISINs auf Anleihen...");
+        System.out.println("Checking " + total + " ISINs for bonds...");
 
-        for (AnleihenEintrag entry : entries.values()) {
+        for (BondEntry entry : entries.values()) {
             current++;
-            System.out.println(); // Neue Zeile für bessere Lesbarkeit
+            System.out.println(); // New line for better readability
             System.out.println("=== " + current + "/" + total + " (" +
                            String.format("%.1f", (current * 100.0) / total) + "%) ===");
 
-            if (isAnleiheUndExtrahiereDaten(entry.getIsin(), httpClient, entry) != null) {
-                anleihen.add(entry);
+            if (isBondAndExtractData(entry.getIsin(), httpClient, entry) != null) {
+                bonds.add(entry);
             }
 
-            // Längere Pause um Server nicht zu überlasten
+            // Longer pause to avoid overloading server
             try {
-                Thread.sleep(3000); // 3 Sekunden Pause - länger wegen 401-Problemen
+                Thread.sleep(3000); // 3 second pause - longer due to 401 issues
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
 
-        System.out.println(); // Neue Zeile nach Fortschrittsanzeige
-        return anleihen;
+        System.out.println(); // New line after progress display
+        return bonds;
     }
 
     /**
-     * Extrahiert Anleihen-Daten aus dem HTML und berechnet Restlaufzeit und Rendite
+     * Extracts bond data from HTML and calculates remaining time and yield
      */
-    public static void extractAnleihenDaten(AnleihenEintrag eintrag, String htmlContent) {
+    public static void extractBondData(BondEntry entry, String htmlContent) {
         try {
-            // DEBUG: Relevanten HTML-Teil für Fälligkeit ausgeben
-            int faelligkeitStart = htmlContent.indexOf("lligkeit"); // Suche nach "lligkeit" um sowohl "Fälligkeit" als auch "F&auml;lligkeit" zu finden
-            if (faelligkeitStart >= 0) {
-                int contextStart = Math.max(0, faelligkeitStart - 100);
-                int contextEnd = Math.min(htmlContent.length(), faelligkeitStart + 300);
+            // DEBUG: Output relevant HTML part for maturity
+            int maturityStart = htmlContent.indexOf("lligkeit"); // Search for "lligkeit" to find both "Fälligkeit" and "F&auml;lligkeit"
+            if (maturityStart >= 0) {
+                int contextStart = Math.max(0, maturityStart - 100);
+                int contextEnd = Math.min(htmlContent.length(), maturityStart + 300);
                 String context = htmlContent.substring(contextStart, contextEnd);
-                System.out.println("DEBUG - HTML um Fälligkeit:");
+                System.out.println("DEBUG - HTML around maturity:");
                 System.out.println(context);
                 System.out.println("---");
             }
 
-            // Fälligkeit extrahieren - berücksichtigt sowohl "Fälligkeit" als auch "F&auml;lligkeit"
-            String faelligkeitsPattern = "<th[^>]*>F(?:ä|&auml;)lligkeit</th>\\s*<td[^>]*>([0-9]{2}\\.[0-9]{2}\\.[0-9]{4})</td>";
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(faelligkeitsPattern);
+            // Extract maturity - considers both "Fälligkeit" and "F&auml;lligkeit"
+            String maturityPattern = "<th[^>]*>F(?:ä|&auml;)lligkeit</th>\\s*<td[^>]*>([0-9]{2}\\.[0-9]{2}\\.[0-9]{4})</td>";
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(maturityPattern);
             java.util.regex.Matcher matcher = pattern.matcher(htmlContent);
 
             if (matcher.find()) {
-                String faelligkeit = matcher.group(1).trim();
-                eintrag.setFaelligkeitsdatum(faelligkeit);
-                System.out.println("DEBUG - Fälligkeit gefunden: " + faelligkeit);
+                String maturity = matcher.group(1).trim();
+                entry.setMaturityDate(maturity);
+                System.out.println("DEBUG - Maturity found: " + maturity);
 
-                // Restlaufzeit in Tagen berechnen (präzise über Datum)
-                int restlaufzeitTage = berechneRestlaufzeitTage(faelligkeit);
-                eintrag.setRestlaufzeitTage(restlaufzeitTage);
-                System.out.println("DEBUG - Restlaufzeit berechnet: " + restlaufzeitTage + " Tage");
+                // Calculate remaining days (precise via date)
+                int remainingDays = calculateRemainingDays(maturity);
+                entry.setRemainingDays(remainingDays);
+                System.out.println("DEBUG - Remaining days calculated: " + remainingDays + " days");
             } else {
-                System.out.println("DEBUG - Fälligkeit NICHT gefunden mit Pattern: " + faelligkeitsPattern);
+                System.out.println("DEBUG - Maturity NOT found with pattern: " + maturityPattern);
 
-                // Erweiterte Fallback-Patterns für verschiedene HTML-Varianten
+                // Extended fallback patterns for different HTML variants
                 String[] fallbackPatterns = {
                     "<th[^>]*>F&auml;lligkeit</th>\\s*<td[^>]*>([0-9]{2}\\.[0-9]{2}\\.[0-9]{4})</td>",
                     "<th[^>]*>Fälligkeit</th>\\s*<td[^>]*>([0-9]{2}\\.[0-9]{2}\\.[0-9]{4})</td>",
@@ -387,43 +387,43 @@ public class CsvReader {
                     pattern = java.util.regex.Pattern.compile(fallbackPattern);
                     matcher = pattern.matcher(htmlContent);
                     if (matcher.find()) {
-                        String faelligkeit = matcher.group(1).trim();
-                        eintrag.setFaelligkeitsdatum(faelligkeit);
-                        System.out.println("DEBUG - Fälligkeit mit Fallback gefunden: " + faelligkeit + " (Pattern: " + fallbackPattern + ")");
+                        String maturity = matcher.group(1).trim();
+                        entry.setMaturityDate(maturity);
+                        System.out.println("DEBUG - Maturity found with fallback: " + maturity + " (Pattern: " + fallbackPattern + ")");
 
-                        int restlaufzeitTage = berechneRestlaufzeitTage(faelligkeit);
-                        eintrag.setRestlaufzeitTage(restlaufzeitTage);
-                        System.out.println("DEBUG - Restlaufzeit berechnet: " + restlaufzeitTage + " Tage");
+                        int remainingDays = calculateRemainingDays(maturity);
+                        entry.setRemainingDays(remainingDays);
+                        System.out.println("DEBUG - Remaining days calculated: " + remainingDays + " days");
                         break;
                     }
                 }
             }
 
-            // DEBUG: Relevanten HTML-Teil für Nominalzins ausgeben
+            // DEBUG: Output relevant HTML part for nominal interest rate
             int nominalStart = htmlContent.indexOf("Nominalzinssatz");
             if (nominalStart >= 0) {
                 int contextStart = Math.max(0, nominalStart - 100);
                 int contextEnd = Math.min(htmlContent.length(), nominalStart + 300);
                 String context = htmlContent.substring(contextStart, contextEnd);
-                System.out.println("DEBUG - HTML um Nominalzinssatz:");
+                System.out.println("DEBUG - HTML around nominal interest rate:");
                 System.out.println(context);
                 System.out.println("---");
             }
 
-            // Nominalzinssatz extrahieren (mit &#160; HTML-Entity)
-            String nominalzinsPattern = "<th[^>]*>Nominalzinssatz</th>\\s*<td[^>]*>([0-9,.]+)\\s*&#160;\\s*%</td>";
-            pattern = java.util.regex.Pattern.compile(nominalzinsPattern);
+            // Extract nominal interest rate (with &#160; HTML entity)
+            String nominalRatePattern = "<th[^>]*>Nominalzinssatz</th>\\s*<td[^>]*>([0-9,.]+)\\s*&#160;\\s*%</td>";
+            pattern = java.util.regex.Pattern.compile(nominalRatePattern);
             matcher = pattern.matcher(htmlContent);
 
             if (matcher.find()) {
-                String nominalzinsStr = matcher.group(1).replace(",", ".");
-                double nominalzins = Double.parseDouble(nominalzinsStr);
-                eintrag.setNominalzins(nominalzins);
-                System.out.println("DEBUG - Nominalzins gefunden: " + nominalzins + "%");
+                String nominalRateStr = matcher.group(1).replace(",", ".");
+                double nominalRate = Double.parseDouble(nominalRateStr);
+                entry.setNominalInterestRate(nominalRate);
+                System.out.println("DEBUG - Nominal interest rate found: " + nominalRate + "%");
             } else {
-                System.out.println("DEBUG - Nominalzins NICHT gefunden mit Pattern: " + nominalzinsPattern);
+                System.out.println("DEBUG - Nominal interest rate NOT found with pattern: " + nominalRatePattern);
 
-                // Fallback: Versuche andere Varianten
+                // Fallback: Try other variants
                 String[] fallbackPatterns = {
                     "<th[^>]*>Nominalzinssatz</th>\\s*<td[^>]*>([0-9,\\.]+)\\s*&nbsp;\\s*%</td>",
                     "<th[^>]*>Nominalzinssatz</th>\\s*<td[^>]*>([0-9,\\.]+)\\s*%</td>",
@@ -434,136 +434,136 @@ public class CsvReader {
                     pattern = java.util.regex.Pattern.compile(fallbackPattern);
                     matcher = pattern.matcher(htmlContent);
                     if (matcher.find()) {
-                        String nominalzinsStr = matcher.group(1).replace(",", ".");
-                        double nominalzins = Double.parseDouble(nominalzinsStr);
-                        eintrag.setNominalzins(nominalzins);
-                        System.out.println("DEBUG - Nominalzins mit Fallback gefunden: " + nominalzins + "% (Pattern: " + fallbackPattern + ")");
+                        String nominalRateStr = matcher.group(1).replace(",", ".");
+                        double nominalRate = Double.parseDouble(nominalRateStr);
+                        entry.setNominalInterestRate(nominalRate);
+                        System.out.println("DEBUG - Nominal interest rate found with fallback: " + nominalRate + "% (Pattern: " + fallbackPattern + ")");
                         break;
                     }
                 }
             }
 
-            // Briefkurs aus der ursprünglichen CSV-Datei nehmen (askPrice)
+            // Take ask price from original CSV data (askPrice)
             try {
-                double briefkurs = Double.parseDouble(eintrag.getAskPrice().replace(",", "."));
-                eintrag.setBriefkurs(briefkurs);
+                double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
+                entry.setAskPriceValue(askPrice);
 
-                // Rendite berechnen
-                if (eintrag.getRestlaufzeitTage() > 0 && eintrag.getNominalzins() > 0) {
-                    double rendite = berechneRendite(briefkurs, eintrag.getNominalzins(),
-                                                   eintrag.getRestlaufzeitTage(), 2.50);
-                    eintrag.setRendite(rendite);
+                // Calculate yield
+                if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() > 0) {
+                    double yield = calculateYield(askPrice, entry.getNominalInterestRate(),
+                                                entry.getRemainingDays(), 2.50);
+                    entry.setYield(yield);
                 }
             } catch (NumberFormatException e) {
-                System.err.println("Fehler beim Parsen des Briefkurses aus CSV für " + eintrag.getIsin() + ": " + eintrag.getAskPrice());
+                System.err.println("Error parsing ask price from CSV for " + entry.getIsin() + ": " + entry.getAskPrice());
             }
 
         } catch (Exception e) {
-            System.err.println("Fehler beim Extrahieren der Anleihen-Daten für " + eintrag.getIsin() + ": " + e.getMessage());
+            System.err.println("Error extracting bond data for " + entry.getIsin() + ": " + e.getMessage());
         }
     }
 
     /**
-     * Berechnet die Restlaufzeit in Tagen basierend auf dem Fälligkeitsdatum
+     * Calculates remaining days based on maturity date
      */
-    public static int berechneRestlaufzeitTage(String faelligkeitsdatum) {
+    public static int calculateRemainingDays(String maturityDate) {
         try {
             // Format: "24.01.2052"
-            String[] teile = faelligkeitsdatum.split("\\.");
-            if (teile.length == 3) {
-                int tag = Integer.parseInt(teile[0]);
-                int monat = Integer.parseInt(teile[1]);
-                int jahr = Integer.parseInt(teile[2]);
+            String[] parts = maturityDate.split("\\.");
+            if (parts.length == 3) {
+                int day = Integer.parseInt(parts[0]);
+                int month = Integer.parseInt(parts[1]);
+                int year = Integer.parseInt(parts[2]);
 
-                java.time.LocalDate faelligkeit = java.time.LocalDate.of(jahr, monat, tag);
-                java.time.LocalDate heute = java.time.LocalDate.now();
+                java.time.LocalDate maturity = java.time.LocalDate.of(year, month, day);
+                java.time.LocalDate today = java.time.LocalDate.now();
 
-                return (int) java.time.temporal.ChronoUnit.DAYS.between(heute, faelligkeit);
+                return (int) java.time.temporal.ChronoUnit.DAYS.between(today, maturity);
             }
         } catch (Exception e) {
-            System.err.println("Fehler beim Parsen des Fälligkeitsdatums: " + faelligkeitsdatum);
+            System.err.println("Error parsing maturity date: " + maturityDate);
         }
         return -1;
     }
 
     /**
-     * Berechnet die Rendite bis zur Fälligkeit (Yield to Maturity)
-     * unter Berücksichtigung der Transaktionskosten
+     * Calculates yield to maturity (Yield to Maturity)
+     * considering transaction costs
      */
-    public static double berechneRendite(double briefkurs, double nominalzins, int tageRestlaufzeit, double kosten) {
+    public static double calculateYield(double askPrice, double nominalRate, int remainingDays, double costs) {
         try {
-            // Einfache Renditeberechnung (ohne komplexe YTM-Iteration)
-            double jahreFaelligkeit = tageRestlaufzeit / 365.0;
+            // Simple yield calculation (without complex YTM iteration)
+            double yearsToMaturity = remainingDays / 365.0;
 
-            // Gesamtkosten des Kaufs (Briefkurs + Transaktionskosten)
-            double gesamtkosten = briefkurs + kosten;
+            // Total cost of purchase (ask price + transaction costs)
+            double totalCosts = askPrice + costs;
 
-            // Annahme: Nominalwert = 100, jährliche Zinszahlungen
-            double nominalwert = 100.0;
-            double jaehrlicheZinsen = nominalwert * (nominalzins / 100.0);
+            // Assumption: Nominal value = 100, annual interest payments
+            double nominalValue = 100.0;
+            double annualInterest = nominalValue * (nominalRate / 100.0);
 
-            // Gesamte Zinszahlungen bis zur Fälligkeit
-            double gesamteZinsen = jaehrlicheZinsen * jahreFaelligkeit;
+            // Total interest payments until maturity
+            double totalInterest = annualInterest * yearsToMaturity;
 
-            // Gesamtertrag = Zinszahlungen + Rückzahlung des Nominalwerts
-            double gesamtertrag = gesamteZinsen + nominalwert;
+            // Total return = interest payments + repayment of nominal value
+            double totalReturn = totalInterest + nominalValue;
 
-            // Rendite = (Gesamtertrag / Gesamtkosten)^(1/Jahre) - 1
-            double rendite = Math.pow(gesamtertrag / gesamtkosten, 1.0 / jahreFaelligkeit) - 1.0;
+            // Yield = (Total return / Total costs)^(1/years) - 1
+            double yield = Math.pow(totalReturn / totalCosts, 1.0 / yearsToMaturity) - 1.0;
 
-            return rendite * 100.0; // In Prozent
+            return yield * 100.0; // In percent
 
         } catch (Exception e) {
-            System.err.println("Fehler bei der Renditeberechnung: " + e.getMessage());
+            System.err.println("Error calculating yield: " + e.getMessage());
             return -1.0;
         }
     }
 
     /**
-     * Hauptmethode
+     * Main method
      */
     public static void main(String[] args) {
         String csvFilePath = "C:\\tmp\\anleihen\\pretrade.20251013.14.45.mund.csv.gz";
 
         try {
-            System.out.println("Lese CSV-Datei: " + csvFilePath);
-            Map<String, AnleihenEintrag> latestEntries = readCsvFile(csvFilePath);
+            System.out.println("Reading CSV file: " + csvFilePath);
+            Map<String, BondEntry> latestEntries = readCsvFile(csvFilePath);
 
-            System.out.println("Insgesamt " + latestEntries.size() + " einzigartige ISINs gefunden.");
+            System.out.println("Total " + latestEntries.size() + " unique ISINs found.");
 
-            // Nur ISINs mit "GR" filtern (griechische Anleihen)
-            Map<String, AnleihenEintrag> grEntries = new HashMap<>();
-            for (Map.Entry<String, AnleihenEintrag> entry : latestEntries.entrySet()) {
+            // Filter only ISINs with "GR" (Greek bonds)
+            Map<String, BondEntry> grEntries = new HashMap<>();
+            for (Map.Entry<String, BondEntry> entry : latestEntries.entrySet()) {
                 if (entry.getKey().startsWith("GR")) {
                     grEntries.put(entry.getKey(), entry.getValue());
                 }
             }
 
-            System.out.println("Davon " + grEntries.size() + " ISINs die mit 'GR' beginnen.");
+            System.out.println("Of which " + grEntries.size() + " ISINs start with 'GR'.");
 
             if (grEntries.isEmpty()) {
-                System.out.println("Keine ISINs mit 'GR' gefunden.");
+                System.out.println("No ISINs starting with 'GR' found.");
                 return;
             }
 
-            // Anleihen filtern (nur GR-ISINs)
+            // Filter bonds (only GR-ISINs)
             System.out.println();
-            List<AnleihenEintrag> anleihen = filterAnleihen(grEntries);
+            List<BondEntry> bonds = filterBonds(grEntries);
 
-            // Gefundene Anleihen ausgeben
+            // Output found bonds
             System.out.println();
-            System.out.println("=== Griechische Anleihen (GR) ===");
-            System.out.printf("Gefundene Anleihen: %d%n", anleihen.size());
+            System.out.println("=== Greek Government Bonds (GR) ===");
+            System.out.printf("Found bonds: %d%n", bonds.size());
             System.out.println();
             System.out.printf("%-15s %-8s %-10s %-10s %-12s %-8s %-10s%n",
-                    "ISIN", "Währung", "Geldkurs", "Briefkurs", "Fälligkeit", "Tage", "Rendite");
+                    "ISIN", "Currency", "Bid Price", "Ask Price", "Maturity", "Days", "Yield");
             System.out.println("-".repeat(85));
-            anleihen.stream()
-                    .sorted(Comparator.comparing(AnleihenEintrag::getRendite).reversed())
+            bonds.stream()
+                    .sorted(Comparator.comparing(BondEntry::getYield).reversed())
                     .forEach(System.out::println);
 
         } catch (IOException e) {
-            System.err.println("Fehler beim Lesen der CSV-Datei: " + e.getMessage());
+            System.err.println("Error reading CSV file: " + e.getMessage());
             e.printStackTrace();
         }
     }
