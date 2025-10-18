@@ -81,76 +81,123 @@ public class CsvReader {
 
     /**
      * Liest die GZIP-komprimierte CSV-Datei und gibt die neuesten Einträge pro ISIN zurück
-     * Optimiert für bessere Performance
+     * Drastisch optimiert für maximale Performance
      */
     public static Map<String, AnleihenEintrag> readCsvFile(String filePath) throws IOException {
-        Map<String, AnleihenEintrag> latestEntries = new HashMap<>();
-
-        System.out.println("Starte CSV-Verarbeitung...");
+        System.out.println("Starte ultra-schnelle CSV-Verarbeitung...");
         long startTime = System.currentTimeMillis();
+
+        // Viel größere Buffer für maximale I/O Performance
+        final int GZIP_BUFFER = 65536; // 64KB
+        final int READ_BUFFER = 131072; // 128KB
+
+        // Verwende ConcurrentHashMap für Thread-Safety bei parallel processing
+        Map<String, AnleihenEintrag> latestEntries = new java.util.concurrent.ConcurrentHashMap<>();
+
+        // Batch-Processing: Sammle Zeilen in Batches und verarbeite parallel
+        List<String> batch = new ArrayList<>(10000);
         int lineCount = 0;
+        int batchCount = 0;
 
         try (FileInputStream fis = new FileInputStream(filePath);
-             GZIPInputStream gzis = new GZIPInputStream(fis, 8192); // Größerer Buffer
+             GZIPInputStream gzis = new GZIPInputStream(fis, GZIP_BUFFER);
              InputStreamReader isr = new InputStreamReader(gzis, java.nio.charset.StandardCharsets.UTF_8);
-             BufferedReader reader = new BufferedReader(isr, 16384)) { // Größerer Buffer
+             BufferedReader reader = new BufferedReader(isr, READ_BUFFER)) {
 
             String line;
             while ((line = reader.readLine()) != null) {
                 lineCount++;
 
-                // Progress-Info alle 10000 Zeilen
-                if (lineCount % 10000 == 0) {
-                    System.out.println("Verarbeitete Zeilen: " + lineCount + " (Unique ISINs: " + latestEntries.size() + ")");
+                // Skip sehr kurze oder offensichtlich ungültige Zeilen sofort
+                if (line.length() < 15 || line.indexOf(',') == -1) continue;
+
+                batch.add(line);
+
+                // Verarbeite Batch parallel wenn voll
+                if (batch.size() >= 10000) {
+                    batchCount++;
+                    System.out.println("Verarbeite Batch " + batchCount + " (Zeilen: " + lineCount + ", ISINs: " + latestEntries.size() + ")");
+                    processBatchParallel(batch, latestEntries);
+                    batch.clear();
                 }
+            }
 
-                // Schnellere String-Verarbeitung: indexOf statt split für bessere Performance
-                if (line.length() < 10) continue; // Skip sehr kurze Zeilen
-
-                // Finde Komma-Positionen (effizienter als split)
-                int[] commaPositions = new int[7];
-                int commaCount = 0;
-                int pos = 0;
-
-                while (pos < line.length() && commaCount < 6) {
-                    int nextComma = line.indexOf(',', pos);
-                    if (nextComma == -1) break;
-                    commaPositions[commaCount++] = nextComma;
-                    pos = nextComma + 1;
-                }
-
-                // Prüfen ob wir mindestens 6 Kommas haben (7 Spalten)
-                if (commaCount < 6) continue;
-
-                // Extrahiere Spalten direkt ohne split
-                String isin = line.substring(0, commaPositions[0]).trim();
-                String timestamp = line.substring(commaPositions[0] + 1, commaPositions[1]).trim();
-                String currency = line.substring(commaPositions[1] + 1, commaPositions[2]).trim();
-                String bidPrice = line.substring(commaPositions[2] + 1, commaPositions[3]).trim();
-                String bidSize = line.substring(commaPositions[3] + 1, commaPositions[4]).trim();
-                String askPrice = line.substring(commaPositions[4] + 1, commaPositions[5]).trim();
-                String askSize = line.substring(commaPositions[5] + 1).trim();
-
-                // Skip leere ISINs
-                if (isin.isEmpty()) continue;
-
-                // Prüfen ob diese ISIN noch nicht existiert oder der Zeitstempel neuer ist
-                AnleihenEintrag existing = latestEntries.get(isin);
-                if (existing == null || timestamp.compareTo(existing.getTimestamp()) > 0) {
-                    AnleihenEintrag eintrag = new AnleihenEintrag(isin, timestamp, currency,
-                                                                 bidPrice, bidSize, askPrice, askSize);
-                    latestEntries.put(isin, eintrag);
-                }
+            // Verarbeite letzten Batch
+            if (!batch.isEmpty()) {
+                batchCount++;
+                System.out.println("Verarbeite finalen Batch " + batchCount);
+                processBatchParallel(batch, latestEntries);
             }
         }
 
         long endTime = System.currentTimeMillis();
-        System.out.println("CSV-Verarbeitung abgeschlossen:");
+        System.out.println("Ultra-schnelle CSV-Verarbeitung abgeschlossen:");
         System.out.println("  - Verarbeitete Zeilen: " + lineCount);
+        System.out.println("  - Verarbeitete Batches: " + batchCount);
         System.out.println("  - Unique ISINs: " + latestEntries.size());
         System.out.println("  - Verarbeitungszeit: " + (endTime - startTime) + "ms");
+        System.out.println("  - Zeilen/Sekunde: " + (lineCount * 1000L / Math.max(1, endTime - startTime)));
 
         return latestEntries;
+    }
+
+    /**
+     * Verarbeitet einen Batch von Zeilen parallel für maximale Performance
+     */
+    private static void processBatchParallel(List<String> batch, Map<String, AnleihenEintrag> latestEntries) {
+        // Parallel-Stream für CPU-intensive String-Verarbeitung
+        batch.parallelStream().forEach(line -> {
+            AnleihenEintrag entry = parseLineOptimized(line);
+            if (entry != null) {
+                // Thread-safe Update der Map
+                latestEntries.merge(entry.getIsin(), entry, (existing, newEntry) ->
+                    newEntry.getTimestamp().compareTo(existing.getTimestamp()) > 0 ? newEntry : existing
+                );
+            }
+        });
+    }
+
+    /**
+     * Ultra-optimiertes Parsing einer einzelnen CSV-Zeile
+     */
+    private static AnleihenEintrag parseLineOptimized(String line) {
+        // Sehr schnelle Komma-Suche ohne Array-Allocation
+        int pos = 0;
+        int commaCount = 0;
+        int[] commas = new int[6]; // Nur die ersten 6 Kommas interessieren uns
+
+        // Finde Komma-Positionen in einem Durchgang
+        for (int i = 0; i < line.length() && commaCount < 6; i++) {
+            if (line.charAt(i) == ',') {
+                commas[commaCount++] = i;
+            }
+        }
+
+        // Prüfe ob wir genug Kommas haben
+        if (commaCount < 6) return null;
+
+        // Extrahiere Felder direkt ohne trim() wo möglich
+        String isin = extractField(line, 0, commas[0]);
+        if (isin.isEmpty()) return null;
+
+        String timestamp = extractField(line, commas[0] + 1, commas[1]);
+        String currency = extractField(line, commas[1] + 1, commas[2]);
+        String bidPrice = extractField(line, commas[2] + 1, commas[3]);
+        String bidSize = extractField(line, commas[3] + 1, commas[4]);
+        String askPrice = extractField(line, commas[4] + 1, commas[5]);
+        String askSize = extractField(line, commas[5] + 1, line.length());
+
+        return new AnleihenEintrag(isin, timestamp, currency, bidPrice, bidSize, askPrice, askSize);
+    }
+
+    /**
+     * Extrahiert ein Feld aus einer Zeile ohne unnötige String-Operationen
+     */
+    private static String extractField(String line, int start, int end) {
+        // Trimme nur Whitespace am Anfang und Ende
+        while (start < end && line.charAt(start) <= ' ') start++;
+        while (end > start && line.charAt(end - 1) <= ' ') end--;
+        return start < end ? line.substring(start, end) : "";
     }
 
     /**
