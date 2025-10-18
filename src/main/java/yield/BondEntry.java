@@ -1,4 +1,4 @@
-package de.example.rendite;
+package yield;
 
 /**
  * Data class representing a bond entry with all relevant information

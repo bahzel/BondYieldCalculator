@@ -1,4 +1,4 @@
-package de.example.rendite;
+package yield;
 
 /**
  * Utility class for yield calculations

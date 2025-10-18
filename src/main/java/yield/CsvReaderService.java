@@ -1,4 +1,4 @@
-package de.example.rendite;
+package yield;
 
 import java.io.*;
 import java.util.*;

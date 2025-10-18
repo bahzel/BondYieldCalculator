@@ -1,4 +1,4 @@
-package de.example.rendite;
+package yield;
 
 /**
  * Service for extracting bond data from HTML content and calculating yields

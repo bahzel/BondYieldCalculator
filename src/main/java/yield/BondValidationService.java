@@ -1,4 +1,4 @@
-package de.example.rendite;
+package yield;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -44,13 +44,7 @@ public class BondValidationService {
                 bonds.add(entry);
             }
 
-            // Longer pause to avoid overloading server
-            try {
-                Thread.sleep(3000); // 3 second pause - longer due to 401 issues
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
+            // No more delay - requests are sent immediately for faster execution
         }
 
         System.out.println(); // New line after progress display
@@ -62,23 +56,7 @@ public class BondValidationService {
      */
     public BondEntry isBondAndExtractData(String isin, BondEntry entry) {
         try {
-            // First visit main page to get cookies/session
-            String mainUrl = "https://www.comdirect.de/";
-            System.out.println("Visiting main page for session: " + mainUrl);
-
-            HttpRequest mainRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(mainUrl))
-                    .timeout(Duration.ofSeconds(10))
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .GET()
-                    .build();
-
-            httpClient.send(mainRequest, HttpResponse.BodyHandlers.ofString());
-
-            // Wait briefly
-            Thread.sleep(500);
-
-            // Now visit the bond page
+            // Direct visit to the bond page
             String url = "https://www.comdirect.de/inf/anleihen/" + isin;
             System.out.println("Checking ISIN: " + isin + " -> URL: " + url);
 
