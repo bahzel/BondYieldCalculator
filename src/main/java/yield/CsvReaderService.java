@@ -15,7 +15,7 @@ public class CsvReaderService {
      * Ultra-aggressively optimized for sub-10-second performance
      */
     public Map<String, BondEntry> readCsvFile(String filePath) throws IOException {
-        System.out.println("Starting ULTRA-AGGRESSIVE CSV processing...");
+        System.out.println("Starting CSV processing...");
         long startTime = System.currentTimeMillis();
 
         // Maximum buffers for extreme I/O performance
@@ -30,6 +30,7 @@ public class CsvReaderService {
         List<String> batch = new ArrayList<>(BATCH_SIZE);
         int lineCount = 0;
         int batchCount = 0;
+        long lastProgressUpdate = 0; // Changed from int to long
 
         try (FileInputStream fis = new FileInputStream(filePath);
              GZIPInputStream gzis = new GZIPInputStream(fis, GZIP_BUFFER);
@@ -48,11 +49,19 @@ public class CsvReaderService {
                 // Process larger batches less frequently
                 if (batch.size() >= BATCH_SIZE) {
                     batchCount++;
-                    if (batchCount % 5 == 1) { // Less output for speed
-                        System.out.println("Mega-Batch " + batchCount + " (Lines: " + lineCount + ", ISINs: " + latestEntries.size() + ")");
-                    }
                     processMegaBatchParallel(batch, latestEntries);
                     batch.clear();
+
+                    // Update progress every 10 batches or every 2 seconds
+                    long currentTime = System.currentTimeMillis();
+                    if (batchCount % 10 == 0 || currentTime - lastProgressUpdate > 2000) {
+                        long elapsed = currentTime - startTime;
+                        double linesPerSec = lineCount * 1000.0 / Math.max(1, elapsed);
+                        System.out.printf("\rProcessing: %,d lines, %,d ISINs, %,d batches | %.1f lines/sec | %,d ms elapsed",
+                                        lineCount, latestEntries.size(), batchCount, linesPerSec, elapsed);
+                        System.out.flush();
+                        lastProgressUpdate = currentTime;
+                    }
                 }
             }
 
@@ -64,13 +73,18 @@ public class CsvReaderService {
         }
 
         long endTime = System.currentTimeMillis();
-        System.out.println("ULTRA-AGGRESSIVE CSV processing completed:");
-        System.out.println("  - Processed lines: " + lineCount);
-        System.out.println("  - Mega-batches: " + batchCount);
-        System.out.println("  - Unique ISINs: " + latestEntries.size());
-        System.out.println("  - Processing time: " + (endTime - startTime) + "ms");
-        System.out.println("  - Lines/second: " + (lineCount * 1000L / Math.max(1, endTime - startTime)));
-        System.out.println("  - SPEED BOOST ACHIEVED!");
+        long totalTime = endTime - startTime;
+
+        // Print final newline to end the progress line, then show summary
+        System.out.println();
+        System.out.println();
+        System.out.println("=== CSV Processing Complete ===");
+        System.out.printf("  Total lines processed: %,d%n", lineCount);
+        System.out.printf("  Unique ISINs found: %,d%n", latestEntries.size());
+        System.out.printf("  Processing batches: %,d%n", batchCount);
+        System.out.printf("  Total processing time: %,d ms (%.2f seconds)%n", totalTime, totalTime / 1000.0);
+        System.out.printf("  Average speed: %,.0f lines/second%n", lineCount * 1000.0 / Math.max(1, totalTime));
+        System.out.println();
 
         return latestEntries;
     }
