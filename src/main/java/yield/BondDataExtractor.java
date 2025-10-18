@@ -10,6 +10,9 @@ public class BondDataExtractor {
      */
     public void extractBondData(BondEntry entry, String htmlContent, double investmentAmount) {
         try {
+            // Extract bond name from headline
+            extractBondName(entry, htmlContent);
+
             // Extract maturity - considers both "Fälligkeit" and "F&auml;lligkeit"
             String maturityPattern = "<th[^>]*>F(?:ä|&auml;)lligkeit</th>\\s*<td[^>]*>([0-9]{2}\\.[0-9]{2}\\.[0-9]{4})</td>";
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(maturityPattern);
@@ -64,6 +67,40 @@ public class BondDataExtractor {
 
         } catch (Exception e) {
             System.err.println("Error extracting bond data for " + entry.getIsin() + ": " + e.getMessage());
+        }
+    }
+
+    /**
+     * Extracts bond name from HTML h1 headline
+     */
+    private void extractBondName(BondEntry entry, String htmlContent) {
+        try {
+            // Pattern for h1 headline with bond name
+            String namePattern = "<h1[^>]*class=\"[^\"]*headline[^\"]*\"[^>]*>\\s*([^<]+?)(?:<span[^>]*>[^<]*</span>)?\\s*</h1>";
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(namePattern);
+            java.util.regex.Matcher matcher = pattern.matcher(htmlContent);
+
+            if (matcher.find()) {
+                String bondName = matcher.group(1).trim();
+                // Clean up the name - remove extra whitespace
+                bondName = bondName.replaceAll("\\s+", " ");
+                entry.setBondName(bondName);
+            } else {
+                // Fallback: try simpler pattern
+                String fallbackPattern = "<h1[^>]*>([^<]+)</h1>";
+                pattern = java.util.regex.Pattern.compile(fallbackPattern);
+                matcher = pattern.matcher(htmlContent);
+
+                if (matcher.find()) {
+                    String bondName = matcher.group(1).trim();
+                    bondName = bondName.replaceAll("\\s+", " ");
+                    entry.setBondName(bondName);
+                } else {
+                    entry.setBondName("Unknown Bond");
+                }
+            }
+        } catch (Exception e) {
+            entry.setBondName("Unknown Bond");
         }
     }
 

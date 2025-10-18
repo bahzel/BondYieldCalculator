@@ -16,6 +16,7 @@ public class BondEntry {
     private double askPriceValue = -1.0;
     private double nominalInterestRate = -1.0;
     private String maturityDate = "";
+    private String bondName = ""; // New field for bond name
 
     public BondEntry(String isin, String timestamp, String currency,
                     String bidPrice, String askPrice) {
@@ -49,10 +50,15 @@ public class BondEntry {
     public String getMaturityDate() { return maturityDate; }
     public void setMaturityDate(String maturityDate) { this.maturityDate = maturityDate; }
 
+    public String getBondName() { return bondName; }
+    public void setBondName(String bondName) { this.bondName = bondName; }
+
     @Override
     public String toString() {
-        return String.format("%-15s %-8s %-10s %-10s %-12s %-8d %-10.3f%%",
-                isin, currency, bidPrice, askPrice, maturityDate,
+        return String.format("%-15s %-35s %-8s %-10s %-10s %-12s %-8d %-10.3f%%",
+                isin,
+                bondName.length() > 34 ? bondName.substring(0, 31) + "..." : bondName,
+                currency, bidPrice, askPrice, maturityDate,
                 Math.max(remainingDays, 0),
                 yield != -1.0 ? yield : 0.0);
     }

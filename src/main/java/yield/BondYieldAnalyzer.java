@@ -122,9 +122,9 @@ public class BondYieldAnalyzer {
         System.out.printf("Investment Amount: €%.2f%n", investmentAmount);
         System.out.printf("Analyzed bonds: %d%n", bonds.size());
         System.out.println();
-        System.out.printf("%-15s %-8s %-10s %-10s %-12s %-8s %-10s%n",
-                "ISIN", "Currency", "Bid Price", "Ask Price", "Maturity", "Days", "Yield");
-        System.out.println("-".repeat(85));
+        System.out.printf("%-15s %-35s %-8s %-10s %-10s %-12s %-8s %-10s%n",
+                "ISIN", "Bond Name", "Currency", "Bid Price", "Ask Price", "Maturity", "Days", "Yield");
+        System.out.println("-".repeat(120));
         bonds.stream()
                 .sorted(Comparator.comparing(BondEntry::getYield).reversed())
                 .forEach(System.out::println);
