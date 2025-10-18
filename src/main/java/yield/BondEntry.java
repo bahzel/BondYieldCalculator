@@ -16,7 +16,7 @@ public class BondEntry {
     private double askPriceValue = -1.0;
     private double nominalInterestRate = -1.0;
     private String maturityDate = "";
-    private String bondName = ""; // New field for bond name
+    private String bondName = "";
 
     public BondEntry(String isin, String timestamp, String currency,
                     String bidPrice, String askPrice) {

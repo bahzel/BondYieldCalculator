@@ -2,6 +2,8 @@
 
 A Java application that analyzes CSV trading data to identify Greek government bonds and calculates their yield-to-maturity based on real-time bond information scraped from comdirect.de.
 
+*This project was implemented using Vibe Coding methodology.*
+
 ## Features
 
 - **CSV Data Processing**: Reads and processes compressed trading data (`.csv.gz` format)
@@ -13,13 +15,14 @@ A Java application that analyzes CSV trading data to identify Greek government b
 - **Yield Calculation**: Computes yield-to-maturity considering:
   - Time to maturity (calculated in days)
   - Annual coupon payments
-  - Transaction costs
+  - Transaction costs (fixed €2.50)
+- **Interactive Input**: User-friendly investment amount input with validation
 - **Robust HTTP Handling**: Includes retry mechanism for timeout handling
 - **Sorted Results**: Displays bonds sorted by yield (highest first)
 
 ## Requirements
 
-- Java 11 or higher
+- Java 17 or higher
 - Maven 3.6+
 - Internet connection (for web scraping)
 
@@ -43,27 +46,44 @@ mvn compile
 
 2. Run the application:
 ```bash
-mvn exec:java -Dexec.mainClass="de.example.rendite.CsvReader"
+mvn exec:java -Dexec.mainClass="yield.BondYieldAnalyzer"
 ```
 
 3. The application will:
+   - Prompt for investment amount
    - Load the CSV data
    - Filter for Greek bonds (GR ISINs)
    - Scrape bond details from comdirect.de
-   - Calculate yields
+   - Calculate yields based on your investment amount
    - Display results sorted by yield
 
 ## Sample Output
 
 ```
-=== Greek Government Bonds (GR) ===
-Found bonds: 3
+=== Bond Yield Calculator ===
 
-ISIN            Currency BidPrice  AskPrice  Maturity     Days     Yield    
----------------------------------------------------------------------------------
-GR0338001231    EUR      98.50     98.75     12.02.2026   117      4.523%
-GR0114020714    EUR      101.20    101.45    15.07.2029   1365     3.891%
-GR0124030710    EUR      95.80     96.05     20.03.2034   3071     3.654%
+Please enter your desired investment amount in EUR: 1000
+
+Investment amount set to: €1000.00
+Transaction costs: fixed €2.50 per transaction
+Total transaction costs: €2.50
+
+Reading CSV file: C:\tmp\anleihen\pretrade.20251013.14.45.mund.csv.gz
+Total 1500 unique ISINs found.
+Of which 3 ISINs start with 'GR'.
+
+=== Greek Government Bond Yield Analysis ===
+Investment Amount: €1000.00
+Analyzed bonds: 3
+
+ISIN            Bond Name                           Currency Bid Price  Ask Price  Maturity     Days     Yield    
+------------------------------------------------------------------------------------------------------------------------
+GR0338001231    Greek Government Bond 2026          EUR      98.50      98.75      12.02.2026   117      4.523%
+GR0114020714    Greek Government Bond 2029          EUR      101.20     101.45     15.07.2029   1365     3.891%
+GR0124030710    Greek Government Bond 2034          EUR      95.80      96.05      20.03.2034   3071     3.654%
+
+Note: Yields are calculated based on your investment amount of €1000.00
+Fixed transaction costs of €2.50 are included in the calculation.
 ```
 
 ## CSV Data Format
@@ -87,6 +107,22 @@ String csvFilePath = "path/to/your/data.csv.gz";
 
 ## Technical Details
 
+### Project Structure
+
+```
+src/
+└── main/
+    └── java/
+        └── yield/
+            ├── BondYieldAnalyzer.java      # Main application class
+            ├── BondEntry.java              # Bond data model
+            ├── BondDataExtractor.java      # Web scraping service
+            ├── BondValidationService.java  # Bond validation and filtering
+            ├── CsvReaderService.java       # CSV processing
+            ├── DateCalculator.java         # Date calculations
+            └── YieldCalculator.java        # Yield calculations
+```
+
 ### Bond Yield Calculation
 
 The yield-to-maturity is calculated using a simplified formula:
@@ -97,7 +133,7 @@ Yield = ((Total Return / Total Cost)^(1/Years) - 1) * 100
 
 Where:
 - **Total Return** = Coupon payments over lifetime + Principal repayment (100)
-- **Total Cost** = Ask price + Transaction costs (2.50 EUR)
+- **Total Cost** = Ask price + Transaction costs (€2.50)
 - **Years** = Days to maturity / 365.25
 
 ### Web Scraping
@@ -114,24 +150,12 @@ The application scrapes bond information from comdirect.de by:
 - Invalid data is gracefully handled with fallback values
 - Debug output helps troubleshoot parsing issues
 
-## Development
-
-This project was developed using **Vibe Coding** techniques for rapid prototyping and iterative development.
-
-### Project Structure
-
-```
-src/
-└── main/
-    └── java/
-        └── de/example/rendite/
-            └── CsvReader.java    # Main application class
-```
-
 ### Dependencies
 
+- Apache Commons CSV for CSV processing
+- Apache Commons Math for mathematical calculations
+- JUnit 5 for testing
 - Java HTTP Client (built-in)
-- Standard Java libraries for file I/O and data processing
 
 ## Contributing
 
@@ -154,7 +178,4 @@ This application is for educational and research purposes only. The yield calcul
 - The application includes a 3-second delay between requests to avoid overwhelming the target website
 - Bond data is scraped in real-time, so results may vary based on market conditions
 - Only Greek government bonds (ISINs starting with "GR") are processed
-
----
-
-*Built with ❤️ using Vibe Coding*
+- Fixed transaction costs of €2.50 are included in all calculations
