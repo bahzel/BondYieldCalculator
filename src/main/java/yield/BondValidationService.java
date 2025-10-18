@@ -27,12 +27,12 @@ public class BondValidationService {
     /**
      * Filters entries and keeps only bonds
      */
-    public List<BondEntry> filterBonds(Map<String, BondEntry> entries) {
+    public List<BondEntry> filterBonds(Map<String, BondEntry> entries, double investmentAmount) {
         List<BondEntry> bonds = new ArrayList<>();
         int total = entries.size();
         int current = 0;
 
-        System.out.println("Checking " + total + " ISINs for bonds...");
+        System.out.println("Checking " + total + " ISINs for bonds with investment amount: €" + String.format("%.2f", investmentAmount) + "...");
 
         for (BondEntry entry : entries.values()) {
             current++;
@@ -40,7 +40,7 @@ public class BondValidationService {
             System.out.println("=== " + current + "/" + total + " (" +
                            String.format("%.1f", (current * 100.0) / total) + "%) ===");
 
-            if (isBondAndExtractData(entry.getIsin(), entry) != null) {
+            if (isBondAndExtractData(entry.getIsin(), entry, investmentAmount) != null) {
                 bonds.add(entry);
             }
 
@@ -54,7 +54,7 @@ public class BondValidationService {
     /**
      * Checks if an ISIN is a bond and extracts bond data
      */
-    public BondEntry isBondAndExtractData(String isin, BondEntry entry) {
+    public BondEntry isBondAndExtractData(String isin, BondEntry entry, double investmentAmount) {
         try {
             // Direct visit to the bond page
             String url = "https://www.comdirect.de/inf/anleihen/" + isin;
@@ -76,10 +76,10 @@ public class BondValidationService {
             System.out.println("  -> HTTP Status: " + statusCode + " -> " + (isBond ? "IS bond" : "NOT a bond"));
 
             if (isBond) {
-                // Parse HTML content and extract data
+                // Parse HTML content and extract data with investment amount
                 String htmlContent = response.body();
                 BondDataExtractor extractor = new BondDataExtractor();
-                extractor.extractBondData(entry, htmlContent);
+                extractor.extractBondData(entry, htmlContent, investmentAmount);
 
                 System.out.println("  -> Maturity: " + entry.getMaturityDate());
                 System.out.println("  -> Remaining days: " + entry.getRemainingDays() + " days");

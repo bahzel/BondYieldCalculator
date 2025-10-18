@@ -8,7 +8,7 @@ public class BondDataExtractor {
     /**
      * Extracts bond data from HTML and calculates remaining time and yield
      */
-    public void extractBondData(BondEntry entry, String htmlContent) {
+    public void extractBondData(BondEntry entry, String htmlContent, double investmentAmount) {
         try {
             // DEBUG: Output relevant HTML part for maturity
             int maturityStart = htmlContent.indexOf("lligkeit"); // Search for "lligkeit" to find both "Fälligkeit" and "F&auml;lligkeit"
@@ -69,11 +69,12 @@ public class BondDataExtractor {
                 double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
                 entry.setAskPriceValue(askPrice);
 
-                // Calculate yield - now also works for zero-coupon bonds (0% nominal rate)
+                // Calculate yield based on investment amount - now also works for zero-coupon bonds (0% nominal rate)
                 if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() >= 0) {
-                    double yield = YieldCalculator.calculateYield(askPrice, entry.getNominalInterestRate(),
-                                                entry.getRemainingDays(), 2.50);
+                    double yield = YieldCalculator.calculateYieldForInvestment(askPrice, entry.getNominalInterestRate(),
+                                                entry.getRemainingDays(), investmentAmount);
                     entry.setYield(yield);
+                    System.out.println("DEBUG - Yield calculated for investment amount " + String.format("%.2f", investmentAmount) + ": " + String.format("%.3f", yield) + "%");
                 }
             } catch (NumberFormatException e) {
                 System.err.println("Error parsing ask price from CSV for " + entry.getIsin() + ": " + entry.getAskPrice());
