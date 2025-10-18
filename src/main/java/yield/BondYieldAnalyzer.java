@@ -93,8 +93,8 @@ public class BondYieldAnalyzer {
 
         System.out.println();
         System.out.println("Investment amount set to: €" + String.format("%.2f", investmentAmount));
-        System.out.println("Transaction costs will be calculated as 0.25% of investment (minimum €2.50)");
-        System.out.println("Estimated transaction costs: €" + String.format("%.2f", Math.max(investmentAmount * 0.0025, 2.50)));
+        System.out.println("Transaction costs: fixed €2.50 per transaction");
+        System.out.println("Total transaction costs: €2.50");
         System.out.println();
 
         return investmentAmount;
@@ -131,6 +131,6 @@ public class BondYieldAnalyzer {
 
         System.out.println();
         System.out.println("Note: Yields are calculated based on your investment amount of €" + String.format("%.2f", investmentAmount));
-        System.out.println("Transaction costs are included in the calculation.");
+        System.out.println("Fixed transaction costs of €2.50 are included in the calculation.");
     }
 }

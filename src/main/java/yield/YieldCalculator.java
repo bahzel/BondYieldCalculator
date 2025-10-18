@@ -7,12 +7,12 @@ public class YieldCalculator {
 
     /**
      * Calculates yield to maturity based on investment amount
-     * considering transaction costs proportional to investment
+     * considering fixed transaction costs of €2.50
      */
     public static double calculateYieldForInvestment(double askPrice, double nominalRate, int remainingDays, double investmentAmount) {
         try {
-            // Calculate transaction costs (e.g., 0.25% of investment amount, minimum 2.50)
-            double transactionCosts = Math.max(investmentAmount * 0.0025, 2.50);
+            // Fixed transaction costs of €2.50
+            double transactionCosts = 2.50;
 
             // Calculate effective cost per bond (including proportional transaction costs)
             double bondsCount = investmentAmount / askPrice;
