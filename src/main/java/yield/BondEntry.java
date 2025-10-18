@@ -54,6 +54,6 @@ public class BondEntry {
         return String.format("%-15s %-8s %-10s %-10s %-12s %-8d %-10.3f%%",
                 isin, currency, bidPrice, askPrice, maturityDate,
                 Math.max(remainingDays, 0),
-                yield >= 0 ? yield : 0.0);
+                yield != -1.0 ? yield : 0.0);
     }
 }

@@ -69,8 +69,8 @@ public class BondDataExtractor {
                 double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
                 entry.setAskPriceValue(askPrice);
 
-                // Calculate yield
-                if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() > 0) {
+                // Calculate yield - now also works for zero-coupon bonds (0% nominal rate)
+                if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() >= 0) {
                     double yield = YieldCalculator.calculateYield(askPrice, entry.getNominalInterestRate(),
                                                 entry.getRemainingDays(), 2.50);
                     entry.setYield(yield);
