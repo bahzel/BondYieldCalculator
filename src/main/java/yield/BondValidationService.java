@@ -15,6 +15,7 @@ import java.util.Map;
 public class BondValidationService {
 
     private final HttpClient httpClient;
+    private final MaturityCache maturityCache;
 
     public BondValidationService() {
         this.httpClient = HttpClient.newBuilder()
@@ -22,6 +23,7 @@ public class BondValidationService {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .cookieHandler(new java.net.CookieManager()) // Automatic cookie management
                 .build();
+        this.maturityCache = new MaturityCache();
     }
 
     /**
@@ -31,21 +33,33 @@ public class BondValidationService {
         List<BondEntry> bonds = new ArrayList<>();
         int total = entries.size();
         int current = 0;
+        int skippedByCache = 0;
 
         System.out.println("Checking " + total + " ISINs for bonds with investment amount: €" + String.format("%.2f", investmentAmount) +
                           (maxDaysToMaturity > 0 ? " and max " + maxDaysToMaturity + " days to maturity" : "") + "...");
 
+        if (maturityCache.getCacheSize() > 0) {
+            System.out.println("Using cache with " + maturityCache.getCacheSize() + " stored maturity dates to skip unnecessary web requests.");
+        }
+
         for (BondEntry entry : entries.values()) {
             current++;
+            String isin = entry.getIsin();
 
             // Update progress line in-place
-            System.out.printf("\rAnalyzing ISIN %d/%d (%.1f%%) - Current: %s",
-                            current, total, (current * 100.0) / total, entry.getIsin());
+            System.out.printf("\rAnalyzing ISIN %d/%d (%.1f%%) - Current: %s (Skipped: %d)",
+                            current, total, (current * 100.0) / total, isin, skippedByCache);
             System.out.flush();
 
-            BondEntry bondEntry = isBondAndExtractData(entry.getIsin(), entry, investmentAmount);
+            // Check cache first to avoid unnecessary web requests
+            if (maturityCache.shouldFilterByMaturity(isin, maxDaysToMaturity)) {
+                skippedByCache++;
+                continue; // Skip this ISIN - it exceeds max maturity based on cached data
+            }
+
+            BondEntry bondEntry = isBondAndExtractData(isin, entry, investmentAmount);
             if (bondEntry != null) {
-                // Apply maturity filter if specified
+                // Apply maturity filter if specified (double-check after web request)
                 if (maxDaysToMaturity > 0 && bondEntry.getDaysToMaturity() > maxDaysToMaturity) {
                     // Skip this bond - it exceeds the maximum days to maturity
                     continue;
@@ -57,6 +71,9 @@ public class BondValidationService {
 
         // Print final newline to end the progress line
         System.out.println();
+        if (skippedByCache > 0) {
+            System.out.println("Cache helped skip " + skippedByCache + " web requests based on maturity filter.");
+        }
         System.out.println();
         return bonds;
     }
@@ -92,6 +109,12 @@ public class BondValidationService {
                 String htmlContent = response.body();
                 BondDataExtractor extractor = new BondDataExtractor();
                 extractor.extractBondData(entry, htmlContent, investmentAmount);
+
+                // Store maturity date in cache for future use
+                if (entry.getMaturityDate() != null && !entry.getMaturityDate().isEmpty()) {
+                    maturityCache.storeMaturityDate(isin, entry.getMaturityDate());
+                }
+
                 return entry;
             }
 
