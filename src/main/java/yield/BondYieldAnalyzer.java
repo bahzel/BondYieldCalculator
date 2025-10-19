@@ -18,6 +18,27 @@ public class BondYieldAnalyzer {
     }
 
     /**
+     * Filters entries to keep only government bonds (ISINs starting with supported prefixes)
+     */
+    private static final Set<String> SUPPORTED_ISIN_PREFIXES = new HashSet<>(Arrays.asList(
+        "BE", "FR", "NL", "AT", "PT", "US", "XS", "CA", "AU", "CH", "ES", "DK", "EU", "GB", "HK", "IE", "IT", "LU", "MT", "MX", "NZ", "NO", "PL", "RO", "SE", "SG", "SK", "SI", "CZ", "HU", "GR"
+    ));
+
+    private Map<String, BondEntry> filterGovernmentBonds(Map<String, BondEntry> allEntries) {
+        Map<String, BondEntry> filteredEntries = new HashMap<>();
+        for (Map.Entry<String, BondEntry> entry : allEntries.entrySet()) {
+            String isin = entry.getKey();
+            for (String prefix : SUPPORTED_ISIN_PREFIXES) {
+                if (isin.startsWith(prefix)) {
+                    filteredEntries.put(isin, entry.getValue());
+                    break;
+                }
+            }
+        }
+        return filteredEntries;
+    }
+
+    /**
      * Main method
      */
     public static void main(String[] args) {
@@ -34,19 +55,19 @@ public class BondYieldAnalyzer {
 
             System.out.println("Total " + latestEntries.size() + " unique ISINs found.");
 
-            // Filter only ISINs with "GR" (Greek bonds)
-            Map<String, BondEntry> grEntries = analyzer.filterGreekBonds(latestEntries);
+            // Filter only ISINs with supported prefixes (government bonds)
+            Map<String, BondEntry> govEntries = analyzer.filterGovernmentBonds(latestEntries);
 
-            System.out.println("Of which " + grEntries.size() + " ISINs start with 'GR'.");
+            System.out.println("Of which " + govEntries.size() + " ISINs start with one of the supported prefixes: " + SUPPORTED_ISIN_PREFIXES + ".");
 
-            if (grEntries.isEmpty()) {
-                System.out.println("No ISINs starting with 'GR' found.");
+            if (govEntries.isEmpty()) {
+                System.out.println("No ISINs starting with supported prefixes found.");
                 return;
             }
 
-            // Analyze bonds and calculate yields with investment amount (only GR-ISINs)
+            // Analyze bonds and calculate yields with investment amount (only supported ISINs)
             System.out.println();
-            List<BondEntry> bonds = analyzer.bondValidationService.filterBonds(grEntries, investmentAmount);
+            List<BondEntry> bonds = analyzer.bondValidationService.filterBonds(govEntries, investmentAmount);
 
             // Display yield analysis results
             analyzer.displayYieldAnalysis(bonds, investmentAmount);
@@ -101,26 +122,13 @@ public class BondYieldAnalyzer {
     }
 
     /**
-     * Filters entries to keep only Greek bonds (ISINs starting with "GR")
-     */
-    private Map<String, BondEntry> filterGreekBonds(Map<String, BondEntry> allEntries) {
-        Map<String, BondEntry> grEntries = new HashMap<>();
-        for (Map.Entry<String, BondEntry> entry : allEntries.entrySet()) {
-            if (entry.getKey().startsWith("GR")) {
-                grEntries.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return grEntries;
-    }
-
-    /**
      * Displays the bond yield analysis results in a formatted table
      */
     private void displayYieldAnalysis(List<BondEntry> bonds, double investmentAmount) {
         System.out.println();
-        System.out.println("=== Greek Government Bond Yield Analysis ===");
-        System.out.printf("Investment Amount: €%.2f%n", investmentAmount);
-        System.out.printf("Analyzed bonds: %d%n", bonds.size());
+        System.out.println("=== Government Bond Yield Analysis ===");
+        System.out.println("Investment Amount: €" + String.format("%.2f", investmentAmount));
+        System.out.println("Analyzed bonds: " + bonds.size());
         System.out.println();
         System.out.printf("%-15s %-35s %-8s %-10s %-10s %-12s %-8s %-10s%n",
                 "ISIN", "Bond Name", "Currency", "Bid Price", "Ask Price", "Maturity", "Days", "Yield");

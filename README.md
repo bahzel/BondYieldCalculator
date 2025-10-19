@@ -1,13 +1,13 @@
-# Bond Yield Calculator for Greek Government Bonds
+# Bond Yield Calculator for Government Bonds
 
-A Java application that analyzes CSV trading data to identify Greek government bonds and calculates their yield-to-maturity based on real-time bond information scraped from comdirect.de.
+A Java application that analyzes CSV trading data to identify government bonds from multiple countries and calculates their yield-to-maturity based on real-time bond information scraped from comdirect.de.
 
 *This project was implemented using Vibe Coding methodology.*
 
 ## Features
 
 - **CSV Data Processing**: Reads and processes compressed trading data (`.csv.gz` format)
-- **Bond Identification**: Automatically identifies Greek government bonds (ISINs starting with "GR")
+- **Bond Identification**: Automatically identifies government bonds (ISINs starting with one of the following prefixes: BE, FR, NL, AT, PT, US, XS, CA, AU, CH, ES, DK, EU, GB, HK, IE, IT, LU, MT, MX, NZ, NO, PL, RO, SE, SG, SK, SI, CZ, HU, GR)
 - **Web Scraping**: Extracts bond details from comdirect.de including:
   - Maturity date
   - Nominal interest rate
@@ -48,6 +48,8 @@ mvn compile
 ```bash
 mvn exec:java -Dexec.mainClass="yield.BondYieldAnalyzer"
 ```
+
+- Only government bonds with ISINs starting with one of the following prefixes are processed: BE, FR, NL, AT, PT, US, XS, CA, AU, CH, ES, DK, EU, GB, HK, IE, IT, LU, MT, MX, NZ, NO, PL, RO, SE, SG, SK, SI, CZ, HU, GR
 
 3. The application will:
    - Prompt for investment amount
