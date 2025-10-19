@@ -53,6 +53,8 @@ public class BondEntry {
     public String getBondName() { return bondName; }
     public void setBondName(String bondName) { this.bondName = bondName; }
 
+    public int getDaysToMaturity() { return remainingDays; }
+
     @Override
     public String toString() {
         return String.format("%-15s %-35s %-8s %-10s %-10s %-12s %-8d %-10.3f%%",

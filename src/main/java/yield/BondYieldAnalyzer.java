@@ -50,6 +50,9 @@ public class BondYieldAnalyzer {
             // Get investment amount from user
             double investmentAmount = analyzer.getInvestmentAmountFromUser();
 
+            // Get maximum days to maturity from user
+            int maxDaysToMaturity = analyzer.getMaxDaysToMaturityFromUser();
+
             System.out.println("Reading CSV file: " + csvFilePath);
             Map<String, BondEntry> latestEntries = analyzer.csvReaderService.readCsvFile(csvFilePath);
 
@@ -65,12 +68,12 @@ public class BondYieldAnalyzer {
                 return;
             }
 
-            // Analyze bonds and calculate yields with investment amount (only supported ISINs)
+            // Analyze bonds and calculate yields with investment amount and maturity filter
             System.out.println();
-            List<BondEntry> bonds = analyzer.bondValidationService.filterBonds(govEntries, investmentAmount);
+            List<BondEntry> bonds = analyzer.bondValidationService.filterBonds(govEntries, investmentAmount, maxDaysToMaturity);
 
             // Display yield analysis results
-            analyzer.displayYieldAnalysis(bonds, investmentAmount);
+            analyzer.displayYieldAnalysis(bonds, investmentAmount, maxDaysToMaturity);
 
         } catch (IOException e) {
             System.err.println("Error reading CSV file: " + e.getMessage());
@@ -122,12 +125,51 @@ public class BondYieldAnalyzer {
     }
 
     /**
+     * Gets the maximum days to maturity from user input
+     */
+    private int getMaxDaysToMaturityFromUser() {
+        Scanner scanner = new Scanner(System.in);
+        int maxDays = 0;
+        boolean validInput = false;
+
+        while (!validInput) {
+            System.out.print("Please enter maximum days to maturity (or 0 for no limit): ");
+            try {
+                String input = scanner.nextLine().trim();
+                maxDays = Integer.parseInt(input);
+
+                if (maxDays < 0) {
+                    System.out.println("Days must be 0 or greater. Please try again.");
+                } else {
+                    validInput = true;
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input. Please enter a valid number (e.g., 365 for 1 year, 0 for no limit).");
+            }
+        }
+
+        if (maxDays == 0) {
+            System.out.println("No maturity limit set - all bonds will be considered.");
+        } else {
+            System.out.println("Maximum days to maturity set to: " + maxDays + " days (" + String.format("%.1f", maxDays / 365.25) + " years)");
+        }
+        System.out.println();
+
+        return maxDays;
+    }
+
+    /**
      * Displays the bond yield analysis results in a formatted table
      */
-    private void displayYieldAnalysis(List<BondEntry> bonds, double investmentAmount) {
+    private void displayYieldAnalysis(List<BondEntry> bonds, double investmentAmount, int maxDaysToMaturity) {
         System.out.println();
         System.out.println("=== Government Bond Yield Analysis ===");
         System.out.println("Investment Amount: €" + String.format("%.2f", investmentAmount));
+        if (maxDaysToMaturity > 0) {
+            System.out.println("Maximum Days to Maturity: " + maxDaysToMaturity + " days (" + String.format("%.1f", maxDaysToMaturity / 365.25) + " years)");
+        } else {
+            System.out.println("Maximum Days to Maturity: No limit");
+        }
         System.out.println("Analyzed bonds: " + bonds.size());
         System.out.println();
         System.out.printf("%-15s %-35s %-8s %-10s %-10s %-12s %-8s %-10s%n",

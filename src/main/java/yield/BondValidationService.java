@@ -25,14 +25,15 @@ public class BondValidationService {
     }
 
     /**
-     * Filters entries and keeps only bonds
+     * Filters entries and keeps only bonds with optional maximum days to maturity filter
      */
-    public List<BondEntry> filterBonds(Map<String, BondEntry> entries, double investmentAmount) {
+    public List<BondEntry> filterBonds(Map<String, BondEntry> entries, double investmentAmount, int maxDaysToMaturity) {
         List<BondEntry> bonds = new ArrayList<>();
         int total = entries.size();
         int current = 0;
 
-        System.out.println("Checking " + total + " ISINs for bonds with investment amount: €" + String.format("%.2f", investmentAmount) + "...");
+        System.out.println("Checking " + total + " ISINs for bonds with investment amount: €" + String.format("%.2f", investmentAmount) +
+                          (maxDaysToMaturity > 0 ? " and max " + maxDaysToMaturity + " days to maturity" : "") + "...");
 
         for (BondEntry entry : entries.values()) {
             current++;
@@ -42,8 +43,14 @@ public class BondValidationService {
                             current, total, (current * 100.0) / total, entry.getIsin());
             System.out.flush();
 
-            if (isBondAndExtractData(entry.getIsin(), entry, investmentAmount) != null) {
-                bonds.add(entry);
+            BondEntry bondEntry = isBondAndExtractData(entry.getIsin(), entry, investmentAmount);
+            if (bondEntry != null) {
+                // Apply maturity filter if specified
+                if (maxDaysToMaturity > 0 && bondEntry.getDaysToMaturity() > maxDaysToMaturity) {
+                    // Skip this bond - it exceeds the maximum days to maturity
+                    continue;
+                }
+                bonds.add(bondEntry);
                 // No output for successful bonds - just continue with next ISIN
             }
         }
