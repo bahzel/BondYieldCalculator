@@ -10,10 +10,12 @@ import java.util.*;
 public class BondYieldAnalyzer {
 
     private final CsvReaderService csvReaderService;
+    private final CsvDownloadService csvDownloadService;
     private final BondValidationService bondValidationService;
 
     public BondYieldAnalyzer() {
         this.csvReaderService = new CsvReaderService();
+        this.csvDownloadService = new CsvDownloadService();
         this.bondValidationService = new BondValidationService();
     }
 
@@ -42,7 +44,7 @@ public class BondYieldAnalyzer {
      * Main method
      */
     public static void main(String[] args) {
-        String csvFilePath = "C:\\tmp\\anleihen\\pretrade.20251013.14.45.mund.csv.gz";
+        String csvFilePath = null;
 
         try {
             BondYieldAnalyzer analyzer = new BondYieldAnalyzer();
@@ -52,6 +54,9 @@ public class BondYieldAnalyzer {
 
             // Get maximum days to maturity from user
             int maxDaysToMaturity = analyzer.getMaxDaysToMaturityFromUser();
+
+            // Download the latest CSV file from gettex.de
+            csvFilePath = analyzer.csvDownloadService.downloadLatestCsvFile();
 
             System.out.println("Reading CSV file: " + csvFilePath);
             Map<String, BondEntry> latestEntries = analyzer.csvReaderService.readCsvFile(csvFilePath);
@@ -76,8 +81,17 @@ public class BondYieldAnalyzer {
             analyzer.displayYieldAnalysis(bonds, investmentAmount, maxDaysToMaturity);
 
         } catch (IOException e) {
-            System.err.println("Error reading CSV file: " + e.getMessage());
+            System.err.println("Error processing CSV file: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            // Clean up temporary file
+            if (csvFilePath != null) {
+                try {
+                    new CsvDownloadService().deleteTempFile(csvFilePath);
+                } catch (Exception e) {
+                    // Ignore cleanup errors
+                }
+            }
         }
     }
 

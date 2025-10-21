@@ -6,8 +6,11 @@ A Java application that analyzes CSV trading data to identify government bonds f
 
 ## Features
 
+- **Automatic CSV Download**: Automatically downloads the latest pretrade data CSV file from gettex.de
 - **CSV Data Processing**: Reads and processes compressed trading data (`.csv.gz` format)
-- **Bond Identification**: Automatically identifies government bonds (ISINs starting with one of the following prefixes: BE, FR, NL, AT, PT, US, XS, CA, AU, CH, ES, DK, EU, GB, HK, IE, IT, LU, MT, MX, NZ, NO, PL, RO, SE, SG, SK, SI, CZ, HU, GR)
+- **Multi-Country Bond Support**: Automatically identifies government bonds from 32 countries/regions (ISINs starting with: BE, FR, NL, AT, PT, US, XS, CA, AU, CH, ES, DK, EU, GB, HK, IE, IT, LU, MT, MX, NZ, NO, PL, RO, SE, SG, SK, SI, CZ, HU, GR)
+- **Maturity Filter**: User can specify maximum days to maturity to filter bonds
+- **Maturity Cache**: Caches bond maturity dates locally to avoid unnecessary web requests and improve performance
 - **Web Scraping**: Extracts bond details from comdirect.de including:
   - Maturity date
   - Nominal interest rate
@@ -16,7 +19,7 @@ A Java application that analyzes CSV trading data to identify government bonds f
   - Time to maturity (calculated in days)
   - Annual coupon payments
   - Transaction costs (fixed €2.50)
-- **Interactive Input**: User-friendly investment amount input with validation
+- **Interactive Input**: User-friendly investment amount and maturity filter input with validation
 - **Robust HTTP Handling**: Includes retry mechanism for timeout handling
 - **Sorted Results**: Displays bonds sorted by yield (highest first)
 
@@ -24,7 +27,7 @@ A Java application that analyzes CSV trading data to identify government bonds f
 
 - Java 17 or higher
 - Maven 3.6+
-- Internet connection (for web scraping)
+- Internet connection (for downloading CSV data and web scraping)
 
 ## Installation
 
@@ -41,23 +44,30 @@ mvn compile
 
 ## Usage
 
-1. Place your compressed CSV trading data file in the expected location:
-   - Default path: `C:\tmp\anleihen\pretrade.YYYYMMDD.HH.MM.mund.csv.gz`
-
-2. Run the application:
+1. Run the application:
 ```bash
 mvn exec:java -Dexec.mainClass="yield.BondYieldAnalyzer"
 ```
 
-- Only government bonds with ISINs starting with one of the following prefixes are processed: BE, FR, NL, AT, PT, US, XS, CA, AU, CH, ES, DK, EU, GB, HK, IE, IT, LU, MT, MX, NZ, NO, PL, RO, SE, SG, SK, SI, CZ, HU, GR
-
-3. The application will:
+2. The application will:
    - Prompt for investment amount
-   - Load the CSV data
-   - Filter for Greek bonds (GR ISINs)
-   - Scrape bond details from comdirect.de
+   - Prompt for maximum days to maturity filter (or 0 for no limit)
+   - Automatically download the latest CSV data from gettex.de
+   - Load and process the CSV data
+   - Filter for government bonds from supported countries
+   - Use cached maturity dates when available to skip bonds that don't match the maturity filter
+   - Scrape bond details from comdirect.de for remaining bonds
    - Calculate yields based on your investment amount
    - Display results sorted by yield
+
+3. Supported countries/regions:
+   - Belgium (BE), France (FR), Netherlands (NL), Austria (AT), Portugal (PT)
+   - United States (US), International (XS), Canada (CA), Australia (AU), Switzerland (CH)
+   - Spain (ES), Denmark (DK), European Union (EU), United Kingdom (GB), Hong Kong (HK)
+   - Ireland (IE), Italy (IT), Luxembourg (LU), Malta (MT), Mexico (MX)
+   - New Zealand (NZ), Norway (NO), Poland (PL), Romania (RO), Sweden (SE)
+   - Singapore (SG), Slovakia (SK), Slovenia (SI), Czech Republic (CZ), Hungary (HU)
+   - Greece (GR)
 
 ## Sample Output
 
@@ -70,23 +80,45 @@ Investment amount set to: €1000.00
 Transaction costs: fixed €2.50 per transaction
 Total transaction costs: €2.50
 
-Reading CSV file: C:\tmp\anleihen\pretrade.20251013.14.45.mund.csv.gz
-Total 1500 unique ISINs found.
-Of which 3 ISINs start with 'GR'.
+Please enter maximum days to maturity (or 0 for no limit): 365
+Maximum days to maturity set to: 365 days (1.0 years)
 
-=== Greek Government Bond Yield Analysis ===
+Fetching latest CSV file from gettex.de...
+Found CSV file URL: https://erdk.bayerische-boerse.de/...
+Downloaded CSV file to: C:\Users\...\pretrade.20251020.17.30.mund.csv.gz
+
+Reading CSV file: C:\Users\...\pretrade.20251020.17.30.mund.csv.gz
+Loaded 1234 maturity dates from cache.
+Starting CSV processing...
+...
+
+=== Government Bond Yield Analysis ===
 Investment Amount: €1000.00
-Analyzed bonds: 3
+Maximum Days to Maturity: 365 days (1.0 years)
+Analyzed bonds: 15
 
 ISIN            Bond Name                           Currency Bid Price  Ask Price  Maturity     Days     Yield    
 ------------------------------------------------------------------------------------------------------------------------
-GR0338001231    Greek Government Bond 2026          EUR      98.50      98.75      12.02.2026   117      4.523%
-GR0114020714    Greek Government Bond 2029          EUR      101.20     101.45     15.07.2029   1365     3.891%
-GR0124030710    Greek Government Bond 2034          EUR      95.80      96.05      20.03.2034   3071     3.654%
+DE0001102481    German Government Bond 2025         EUR      99.85      99.95      15.08.2025   298      3.245%
+FR0014001NN4    French Government Bond 2025         EUR      99.12      99.28      25.10.2025   369      2.987%
+...
 
 Note: Yields are calculated based on your investment amount of €1000.00
 Fixed transaction costs of €2.50 are included in the calculation.
 ```
+
+## CSV Data Source
+
+The application automatically downloads the latest pretrade data from:
+- Website: https://www.gettex.de/handel/delayed-data/pretrade-data/
+- The most recent CSV file is automatically selected and downloaded
+
+## Maturity Cache
+
+Bond maturity dates are cached locally in:
+- Location: `%USERPROFILE%\.bondcache\maturity_cache.properties` (Windows)
+- Purpose: Avoid unnecessary web requests for bonds that don't match the maturity filter
+- Performance: Significantly speeds up subsequent runs
 
 ## CSV Data Format
 
