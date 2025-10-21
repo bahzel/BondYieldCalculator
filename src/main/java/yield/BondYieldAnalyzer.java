@@ -45,9 +45,10 @@ public class BondYieldAnalyzer {
      */
     public static void main(String[] args) {
         String csvFilePath = null;
+        BondYieldAnalyzer analyzer = null;
 
         try {
-            BondYieldAnalyzer analyzer = new BondYieldAnalyzer();
+            analyzer = new BondYieldAnalyzer();
 
             // Get investment amount from user
             double investmentAmount = analyzer.getInvestmentAmountFromUser();
@@ -84,6 +85,15 @@ public class BondYieldAnalyzer {
             System.err.println("Error processing CSV file: " + e.getMessage());
             e.printStackTrace();
         } finally {
+            // Save cache before exiting (also saves any unsaved changes on interruption)
+            if (analyzer != null) {
+                try {
+                    analyzer.bondValidationService.saveCache();
+                } catch (Exception e) {
+                    // Ignore cache save errors
+                }
+            }
+            
             // Clean up temporary file
             if (csvFilePath != null) {
                 try {

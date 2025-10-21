@@ -11,7 +11,7 @@ import java.util.zip.GZIPInputStream;
 public class CsvReaderService {
 
     /**
-     * Reads GZIP-compressed CSV file and returns the latest entries per ISIN
+     * Reads CSV file (automatically detects if GZIP-compressed) and returns the latest entries per ISIN
      * Ultra-aggressively optimized for sub-10-second performance
      */
     public Map<String, BondEntry> readCsvFile(String filePath) throws IOException {
@@ -30,11 +30,14 @@ public class CsvReaderService {
         List<String> batch = new ArrayList<>(BATCH_SIZE);
         int lineCount = 0;
         int batchCount = 0;
-        long lastProgressUpdate = 0; // Changed from int to long
+        long lastProgressUpdate = 0;
+
+        // Check if file is GZIP compressed by reading the magic number
+        boolean isGzipped = isGzipFile(filePath);
 
         try (FileInputStream fis = new FileInputStream(filePath);
-             GZIPInputStream gzis = new GZIPInputStream(fis, GZIP_BUFFER);
-             InputStreamReader isr = new InputStreamReader(gzis, java.nio.charset.StandardCharsets.UTF_8);
+             InputStream inputStream = isGzipped ? new GZIPInputStream(fis, GZIP_BUFFER) : fis;
+             InputStreamReader isr = new InputStreamReader(inputStream, java.nio.charset.StandardCharsets.UTF_8);
              BufferedReader reader = new BufferedReader(isr, READ_BUFFER)) {
 
             String line;
@@ -87,6 +90,21 @@ public class CsvReaderService {
         System.out.println();
 
         return latestEntries;
+    }
+
+    /**
+     * Checks if a file is GZIP compressed by reading the magic number
+     */
+    private boolean isGzipFile(String filePath) throws IOException {
+        try (FileInputStream fis = new FileInputStream(filePath)) {
+            byte[] header = new byte[2];
+            int bytesRead = fis.read(header);
+            if (bytesRead < 2) {
+                return false;
+            }
+            // GZIP magic number: 0x1f 0x8b
+            return (header[0] == (byte) 0x1f && header[1] == (byte) 0x8b);
+        }
     }
 
     /**
