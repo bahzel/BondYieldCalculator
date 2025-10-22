@@ -154,6 +154,19 @@ public class CsvReaderService {
         String bidPrice = extractFieldUltraFast(chars, commas[2] + 1, commas[3]);
         String askPrice = extractFieldUltraFast(chars, commas[4] + 1, commas[5]);
 
+        // Filter out entries with ask price of 0
+        if (askPrice != null && !askPrice.isEmpty()) {
+            try {
+                double askPriceValue = Double.parseDouble(askPrice.replace(",", "."));
+                if (askPriceValue <= 0.0) {
+                    return null; // Filter out zero or negative ask prices
+                }
+            } catch (NumberFormatException e) {
+                // Invalid ask price format - skip this entry
+                return null;
+            }
+        }
+
         return new BondEntry(isin, timestamp, currency, bidPrice, askPrice);
     }
 
