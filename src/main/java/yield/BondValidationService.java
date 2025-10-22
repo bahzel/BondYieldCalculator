@@ -17,6 +17,9 @@ public class BondValidationService {
     private final HttpClient httpClient;
     private final MaturityCache maturityCache;
 
+    // Corporate bond name filters
+    private static final String[] CORPORATE_BOND_MARKERS = {"Corp.", "Inc.", "Co."};
+
     public BondValidationService() {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
@@ -24,6 +27,22 @@ public class BondValidationService {
                 .cookieHandler(new java.net.CookieManager()) // Automatic cookie management
                 .build();
         this.maturityCache = new MaturityCache();
+    }
+
+    /**
+     * Checks if a bond name contains corporate bond markers
+     */
+    private boolean isCorporateBond(String bondName) {
+        if (bondName == null || bondName.isEmpty()) {
+            return false;
+        }
+
+        for (String marker : CORPORATE_BOND_MARKERS) {
+            if (bondName.contains(marker)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -42,9 +61,11 @@ public class BondValidationService {
         int current = 0;
         int skippedByCache = 0;
         int loadedFromCache = 0;
+        int skippedCorporate = 0;
 
         System.out.println("Checking " + total + " ISINs for bonds with investment amount: €" + String.format("%.2f", investmentAmount) +
                           (maxDaysToMaturity > 0 ? " and max " + maxDaysToMaturity + " days to maturity" : "") + "...");
+        System.out.println("Filtering out corporate bonds (containing: Corp., Inc., Co.)");
 
         if (maturityCache.getCacheSize() > 0) {
             System.out.println("Using cache with " + maturityCache.getCacheSize() + " entries.");
@@ -56,8 +77,8 @@ public class BondValidationService {
             String isin = entry.getIsin();
 
             // Update progress line in-place
-            System.out.printf("\rAnalyzing ISIN %d/%d (%.1f%%) - Current: %s (Skipped: %d, Cached: %d)",
-                            current, total, (current * 100.0) / total, isin, skippedByCache, loadedFromCache);
+            System.out.printf("\rAnalyzing ISIN %d/%d (%.1f%%) - Current: %s (Skipped: %d, Cached: %d, Corporate: %d)",
+                            current, total, (current * 100.0) / total, isin, skippedByCache, loadedFromCache, skippedCorporate);
             System.out.flush();
 
             // Check cache first to avoid unnecessary web requests
@@ -69,6 +90,12 @@ public class BondValidationService {
             // Check if we have complete cached data - if yes, use it without web request
             if (maturityCache.hasCompleteData(isin)) {
                 maturityCache.loadCachedData(entry);
+
+                // Filter out corporate bonds by name
+                if (isCorporateBond(entry.getBondName())) {
+                    skippedCorporate++;
+                    continue;
+                }
 
                 // Calculate yield with cached data
                 try {
@@ -97,6 +124,12 @@ public class BondValidationService {
             // Need to fetch from web
             BondEntry bondEntry = isBondAndExtractData(isin, entry, investmentAmount);
             if (bondEntry != null) {
+                // Filter out corporate bonds by name (after caching the data)
+                if (isCorporateBond(bondEntry.getBondName())) {
+                    skippedCorporate++;
+                    continue;
+                }
+
                 // Apply maturity filter if specified (double-check after web request)
                 if (maxDaysToMaturity > 0 && bondEntry.getDaysToMaturity() > maxDaysToMaturity) {
                     // Skip this bond - it exceeds the maximum days to maturity
@@ -113,6 +146,9 @@ public class BondValidationService {
         }
         if (loadedFromCache > 0) {
             System.out.println("Loaded " + loadedFromCache + " bonds completely from cache (no web request needed).");
+        }
+        if (skippedCorporate > 0) {
+            System.out.println("Filtered out " + skippedCorporate + " corporate bonds (containing Corp., Inc., or Co.).");
         }
 
         // Auto-save any remaining unsaved changes
@@ -159,7 +195,7 @@ public class BondValidationService {
                 BondDataExtractor extractor = new BondDataExtractor();
                 extractor.extractBondData(entry, htmlContent, investmentAmount);
 
-                // Store all bond data in cache for future use
+                // Store all bond data in cache for future use (even if it's a corporate bond)
                 maturityCache.storeBondData(
                     isin,
                     entry.getMaturityDate(),
