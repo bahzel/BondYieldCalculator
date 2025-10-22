@@ -7,7 +7,9 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -98,9 +100,14 @@ public class MaturityCache {
     public void storeBondData(String isin, String maturityDateStr, Double nominalInterestRate, String bondName) {
         BondCacheEntry entry = cache.computeIfAbsent(isin, k -> new BondCacheEntry());
 
+        boolean hasMaturityDate = false;
+        boolean hasNominalRate = false;
+        boolean hasBondName = false;
+
         if (maturityDateStr != null && !maturityDateStr.trim().isEmpty()) {
             try {
                 entry.maturityDate = LocalDate.parse(maturityDateStr, DATE_FORMAT);
+                hasMaturityDate = true;
             } catch (DateTimeParseException e) {
                 System.err.println("Warning: Could not parse maturity date '" + maturityDateStr + "' for ISIN " + isin);
             }
@@ -108,10 +115,24 @@ public class MaturityCache {
 
         if (nominalInterestRate != null && nominalInterestRate >= 0) {
             entry.nominalInterestRate = nominalInterestRate;
+            hasNominalRate = true;
         }
 
         if (bondName != null && !bondName.trim().isEmpty() && !"Unknown Bond".equals(bondName)) {
             entry.bondName = bondName;
+            hasBondName = true;
+        }
+
+        // Log incomplete data sets for later analysis
+        if (!hasMaturityDate || !hasNominalRate || !hasBondName) {
+            List<String> missingFields = new ArrayList<>();
+            if (!hasMaturityDate) missingFields.add("maturity date");
+            if (!hasNominalRate) missingFields.add("nominal interest rate");
+            if (!hasBondName) missingFields.add("bond name");
+            
+            System.out.println();
+            System.out.println("WARNING: Incomplete data cached for ISIN " + isin + 
+                             " - Missing: " + String.join(", ", missingFields));
         }
 
         incrementAndSave();
