@@ -350,5 +350,45 @@ public class MaturityCache {
             System.err.println("Warning: Could not create cache directory: " + e.getMessage());
         }
     }
+
+    /**
+     * Removes all HTTP 400 error entries from the cache
+     * Returns the number of entries removed
+     */
+    public int clearHttp400Errors() {
+        int removedCount = 0;
+        List<String> isinsToRemove = new ArrayList<>();
+
+        for (Map.Entry<String, BondCacheEntry> entry : cache.entrySet()) {
+            if (entry.getValue().isHttp400Error) {
+                isinsToRemove.add(entry.getKey());
+                removedCount++;
+            }
+        }
+
+        for (String isin : isinsToRemove) {
+            cache.remove(isin);
+        }
+
+        if (removedCount > 0) {
+            saveCache();
+            unsavedChanges = 0;
+        }
+
+        return removedCount;
+    }
+
+    /**
+     * Returns the number of HTTP 400 error entries in the cache
+     */
+    public int getHttp400ErrorCount() {
+        int count = 0;
+        for (BondCacheEntry entry : cache.values()) {
+            if (entry.isHttp400Error) {
+                count++;
+            }
+        }
+        return count;
+    }
 }
 

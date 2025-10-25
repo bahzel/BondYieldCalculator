@@ -55,6 +55,21 @@ public class BondDataService {
     }
 
     /**
+     * Returns the number of HTTP 400 error entries in the cache
+     */
+    public int getHttp400ErrorCount() {
+        return maturityCache.getHttp400ErrorCount();
+    }
+
+    /**
+     * Clears all HTTP 400 error entries from the cache
+     * Returns the number of entries removed
+     */
+    public int clearHttp400Errors() {
+        return maturityCache.clearHttp400Errors();
+    }
+
+    /**
      * Filters entries and keeps only bonds with optional maximum days to maturity filter
      */
     public List<BondEntry> filterBonds(Map<String, BondEntry> entries, double investmentAmount, int maxDaysToMaturity) {

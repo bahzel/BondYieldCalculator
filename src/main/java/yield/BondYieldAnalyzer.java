@@ -59,6 +59,9 @@ public class BondYieldAnalyzer {
             // Get maximum days to maturity from user
             int maxDaysToMaturity = analyzer.getMaxDaysToMaturityFromUser();
 
+            // Ask user if they want to recheck cached HTTP 400 errors
+            analyzer.askRecheckHttp400Errors();
+
             // Download the latest CSV file from gettex.de
             csvFilePath = analyzer.csvDownloadService.downloadLatestCsvFile();
 
@@ -183,6 +186,32 @@ public class BondYieldAnalyzer {
         System.out.println();
 
         return maxDays;
+    }
+
+    /**
+     * Asks user if they want to recheck cached HTTP 400 errors
+     */
+    private void askRecheckHttp400Errors() {
+        int errorCount = bondDataService.getHttp400ErrorCount();
+
+        if (errorCount == 0) {
+            // No errors in cache, skip question
+            return;
+        }
+
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Found " + errorCount + " cached HTTP 400/404 error(s) (ISINs that were not found previously).");
+        System.out.print("Do you want to recheck these ISINs? (y/n): ");
+
+        String input = scanner.nextLine().trim().toLowerCase();
+
+        if (input.equals("y") || input.equals("yes") || input.equals("j") || input.equals("ja")) {
+            int removedCount = bondDataService.clearHttp400Errors();
+            System.out.println("Removed " + removedCount + " HTTP 400/404 error(s) from cache. These ISINs will be rechecked.");
+        } else {
+            System.out.println("Keeping cached HTTP 400/404 errors. These ISINs will be skipped.");
+        }
+        System.out.println();
     }
 
     /**
