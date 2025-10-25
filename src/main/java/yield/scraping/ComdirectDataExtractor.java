@@ -77,7 +77,7 @@ public class ComdirectDataExtractor extends BondDataExtractor {
             // Extract bond name from headline
             extractBondName(entry, htmlContent);
 
-            // Extract maturity - considers both "Fälligkeit" and "F&auml;lligkeit"
+            // Extract maturity - considers both "Fälligkeit" and "F&auml;lligkeit" (German for "maturity")
             String maturityPattern = "<th[^>]*>F(?:ä|&auml;)lligkeit</th>\\s*<td[^>]*>([0-9]{2}\\.[0-9]{2}\\.[0-9]{4})</td>";
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(maturityPattern);
             java.util.regex.Matcher matcher = pattern.matcher(htmlContent);

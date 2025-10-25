@@ -172,24 +172,42 @@ Where:
 
 ### Web Scraping
 
-The application scrapes bond information from comdirect.de by:
-1. Establishing a session with the main page
-2. Accessing individual bond pages using ISIN
-3. Parsing HTML to extract maturity dates and nominal rates
-4. Implementing retry logic for timeout handling
+The application uses a dual data source strategy with intelligent fallback:
+
+**Primary Source: comdirect.de**
+1. Establishes HTTP session with proper headers
+2. Accesses individual bond pages using ISIN
+3. Parses HTML to extract maturity dates, nominal rates, and bond names
+4. Implements retry logic for timeout handling (up to 3 attempts with exponential backoff)
+5. Returns `ExtractionResult` enum (COMPLETE, INCOMPLETE, NOT_FOUND, ERROR)
+
+**Fallback Source: bondblox.com**
+- Automatically triggered when comdirect data is incomplete
+- Extracts missing bond information
+- Provides detailed logging of fallback results
+- Complements primary source for comprehensive data coverage
+
+**Smart Error Handling**:
+- HTTP 400/404 errors from comdirect are cached to avoid repeated failed requests
+- Incomplete data triggers automatic fallback attempt
+- Only comdirect HTTP errors are cached (not fallback failures)
+- User can optionally recheck cached errors on program start
 
 ### Error Handling
 
-- HTTP timeouts are automatically retried (up to 3 attempts)
-- Invalid data is gracefully handled with fallback values
-- Debug output helps troubleshoot parsing issues
+- **HTTP Timeouts**: Automatically retried up to 3 attempts with exponential backoff
+- **Invalid Data**: Gracefully handled with fallback values and alternative data sources
+- **Missing Data**: Automatic fallback from comdirect.de to bondblox.com
+- **Cache Management**: Separate tracking of HTTP errors vs. incomplete data
+- **Extraction Status**: `ExtractionResult` enum provides clear status tracking (COMPLETE, INCOMPLETE, NOT_FOUND, ERROR)
+- **User Control**: Optional recheck of previously failed ISINs
 
 ### Dependencies
 
-- Apache Commons CSV for CSV processing
-- Apache Commons Math for mathematical calculations
-- JUnit 5 for testing
-- Java HTTP Client (built-in)
+- Java 17 or higher (built-in HTTP Client)
+- Apache Commons Compress (for `.gz` file handling)
+- Maven 3.6+ (build tool)
+- No external web scraping libraries (uses native Java HTTP Client)
 
 ## Contributing
 
@@ -209,7 +227,11 @@ This application is for educational and research purposes only. The yield calcul
 
 ## Notes
 
-- The application includes a 3-second delay between requests to avoid overwhelming the target website
-- Bond data is scraped in real-time, so results may vary based on market conditions
-- Only Greek government bonds (ISINs starting with "GR") are processed
-- Fixed transaction costs of €2.50 are included in all calculations
+- **Data Sources**: Primary source is comdirect.de with automatic fallback to bondblox.com
+- **Caching**: Comprehensive caching system for bond data and HTTP errors
+- **Performance**: Parallel CSV processing and intelligent caching for optimal speed
+- **Currency Support**: Supports all currencies with optional EUR-only filter
+- **Country Coverage**: 32 countries/regions supported (not just Greece)
+- **Transaction Costs**: Fixed €2.50 per transaction included in all calculations
+- **Rate Limiting**: Respectful delays between requests to avoid overwhelming websites
+- **Corporate Bonds**: Automatically filtered out (bonds containing: Corp., Inc., Co.)

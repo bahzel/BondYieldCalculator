@@ -54,23 +54,23 @@ public class BondbloxDataExtractor extends BondDataExtractor {
                 boolean isComplete = hasMaturity && hasCoupon;
 
                 if (isComplete) {
-                    System.out.println("  -> Bondblox: Daten vollständig für " + isin);
+                    System.out.println("  -> Bondblox: Data complete for " + isin);
                     return ExtractionResult.COMPLETE;
                 } else {
-                    System.out.println("  -> Bondblox: Daten unvollständig für " + isin +
+                    System.out.println("  -> Bondblox: Data incomplete for " + isin +
                                      " (Maturity: " + hasMaturity + ", Coupon: " + hasCoupon + ")");
                     return ExtractionResult.INCOMPLETE;
                 }
             } else if (response.statusCode() == 404) {
-                System.out.println("  -> Bondblox: Abruf fehlgeschlagen für " + isin + " (HTTP 404)");
+                System.out.println("  -> Bondblox: Request failed for " + isin + " (HTTP 404)");
                 return ExtractionResult.NOT_FOUND;
             } else {
-                System.out.println("  -> Bondblox: Abruf fehlgeschlagen für " + isin + " (HTTP " + response.statusCode() + ")");
+                System.out.println("  -> Bondblox: Request failed for " + isin + " (HTTP " + response.statusCode() + ")");
                 return ExtractionResult.ERROR;
             }
 
         } catch (Exception e) {
-            System.out.println("  -> Bondblox: Abruf fehlgeschlagen für " + isin + " (" + e.getMessage() + ")");
+            System.out.println("  -> Bondblox: Request failed for " + isin + " (" + e.getMessage() + ")");
             return ExtractionResult.ERROR;
         }
     }

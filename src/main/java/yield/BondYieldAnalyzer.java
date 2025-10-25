@@ -219,7 +219,7 @@ public class BondYieldAnalyzer {
                 onlyEuro = true;
                 validInput = true;
                 System.out.println("Filter set to: EUR only");
-            } else if (input.equals("all") || input.equals("alle") || input.equals("a")) {
+            } else if (input.equals("all") || input.equals("a")) {
                 validInput = true;
                 System.out.println("Filter set to: All currencies");
             } else {
@@ -248,7 +248,7 @@ public class BondYieldAnalyzer {
 
         String input = scanner.nextLine().trim().toLowerCase();
 
-        if (input.equals("y") || input.equals("yes") || input.equals("j") || input.equals("ja")) {
+        if (input.equals("y") || input.equals("yes")) {
             int removedCount = bondDataService.clearHttp400Errors();
             System.out.println("Removed " + removedCount + " HTTP 400/404 error(s) from cache. These ISINs will be rechecked.");
         } else {
