@@ -29,14 +29,25 @@ public class BondYieldAnalyzer {
         "BE", "FR", "NL", "AT", "PT", "US", "XS", "CA", "AU", "CH", "ES", "DK", "EU", "GB", "HK", "IE", "IT", "LU", "MT", "MX", "NZ", "NO", "PL", "RO", "SE", "SG", "SK", "SI", "CZ", "HU", "GR"
     ));
 
-    private Map<String, BondEntry> filterGovernmentBonds(Map<String, BondEntry> allEntries) {
+    private Map<String, BondEntry> filterGovernmentBonds(Map<String, BondEntry> allEntries, boolean onlyEuro) {
         Map<String, BondEntry> filteredEntries = new HashMap<>();
         for (Map.Entry<String, BondEntry> entry : allEntries.entrySet()) {
             String isin = entry.getKey();
+            BondEntry bondEntry = entry.getValue();
+
+            // Check if ISIN starts with supported prefix
+            boolean matchesPrefix = false;
             for (String prefix : SUPPORTED_ISIN_PREFIXES) {
                 if (isin.startsWith(prefix)) {
-                    filteredEntries.put(isin, entry.getValue());
+                    matchesPrefix = true;
                     break;
+                }
+            }
+
+            // Apply currency filter if needed
+            if (matchesPrefix) {
+                if (!onlyEuro || "EUR".equals(bondEntry.getCurrency())) {
+                    filteredEntries.put(isin, bondEntry);
                 }
             }
         }
@@ -59,6 +70,9 @@ public class BondYieldAnalyzer {
             // Get maximum days to maturity from user
             int maxDaysToMaturity = analyzer.getMaxDaysToMaturityFromUser();
 
+            // Ask user if they want only EUR or all currencies
+            boolean onlyEuro = analyzer.askCurrencyFilter();
+
             // Ask user if they want to recheck cached HTTP 400 errors
             analyzer.askRecheckHttp400Errors();
 
@@ -70,10 +84,11 @@ public class BondYieldAnalyzer {
 
             System.out.println("Total " + latestEntries.size() + " unique ISINs found.");
 
-            // Filter only ISINs with supported prefixes (government bonds)
-            Map<String, BondEntry> govEntries = analyzer.filterGovernmentBonds(latestEntries);
+            // Filter only ISINs with supported prefixes (government bonds) and optionally by currency
+            Map<String, BondEntry> govEntries = analyzer.filterGovernmentBonds(latestEntries, onlyEuro);
 
-            System.out.println("Of which " + govEntries.size() + " ISINs start with one of the supported prefixes: " + SUPPORTED_ISIN_PREFIXES + ".");
+            System.out.println("Of which " + govEntries.size() + " ISINs start with one of the supported prefixes: " + SUPPORTED_ISIN_PREFIXES +
+                             (onlyEuro ? " and are in EUR currency." : "."));
 
             if (govEntries.isEmpty()) {
                 System.out.println("No ISINs starting with supported prefixes found.");
@@ -186,6 +201,34 @@ public class BondYieldAnalyzer {
         System.out.println();
 
         return maxDays;
+    }
+
+    /**
+     * Asks user if they want only EUR or all currencies
+     */
+    private boolean askCurrencyFilter() {
+        Scanner scanner = new Scanner(System.in);
+        boolean validInput = false;
+        boolean onlyEuro = false;
+
+        while (!validInput) {
+            System.out.print("Do you want to see only EUR bonds or all currencies? (EUR/all): ");
+            String input = scanner.nextLine().trim().toLowerCase();
+
+            if (input.equals("eur") || input.equals("euro") || input.equals("e")) {
+                onlyEuro = true;
+                validInput = true;
+                System.out.println("Filter set to: EUR only");
+            } else if (input.equals("all") || input.equals("alle") || input.equals("a")) {
+                validInput = true;
+                System.out.println("Filter set to: All currencies");
+            } else {
+                System.out.println("Invalid input. Please enter 'EUR' or 'all'.");
+            }
+        }
+
+        System.out.println();
+        return onlyEuro;
     }
 
     /**
