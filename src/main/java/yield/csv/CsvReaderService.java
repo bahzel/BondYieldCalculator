@@ -1,9 +1,11 @@
-package yield;
+package yield.csv;
 
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.zip.GZIPInputStream;
+
+import yield.BondEntry;
 
 /**
  * Service class for reading and parsing CSV files containing bond data
@@ -155,7 +157,7 @@ public class CsvReaderService {
         String askPrice = extractFieldUltraFast(chars, commas[4] + 1, commas[5]);
 
         // Filter out entries with ask price of 0
-        if (askPrice != null && !askPrice.isEmpty()) {
+        if (!askPrice.isEmpty()) {
             try {
                 double askPriceValue = Double.parseDouble(askPrice.replace(",", "."));
                 if (askPriceValue <= 0.0) {

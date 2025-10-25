@@ -1,4 +1,4 @@
-package yield;
+package yield.cache;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -12,6 +12,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+
+import yield.BondEntry;
+import yield.scraping.DateCalculator;
 
 /**
  * Cache for storing and retrieving bond data to avoid unnecessary web requests

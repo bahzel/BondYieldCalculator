@@ -1,4 +1,4 @@
-package yield;
+package yield.scraping;
 
 /**
  * Utility class for yield calculations

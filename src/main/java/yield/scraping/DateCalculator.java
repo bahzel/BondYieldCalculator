@@ -1,4 +1,4 @@
-package yield;
+package yield.scraping;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;

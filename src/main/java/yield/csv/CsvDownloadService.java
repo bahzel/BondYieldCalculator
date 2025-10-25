@@ -1,4 +1,4 @@
-package yield;
+package yield.csv;
 
 import java.io.*;
 import java.net.*;

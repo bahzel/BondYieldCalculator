@@ -3,6 +3,9 @@ package yield;
 import java.io.IOException;
 import java.util.*;
 
+import yield.csv.CsvDownloadService;
+import yield.csv.CsvReaderService;
+
 /**
  * Main class for analyzing bond yields from CSV data
  * Orchestrates the process of reading CSV files, filtering Greek bonds, and displaying yield results
@@ -11,12 +14,12 @@ public class BondYieldAnalyzer {
 
     private final CsvReaderService csvReaderService;
     private final CsvDownloadService csvDownloadService;
-    private final BondValidationService bondValidationService;
+    private final BondDataService bondDataService;
 
     public BondYieldAnalyzer() {
         this.csvReaderService = new CsvReaderService();
         this.csvDownloadService = new CsvDownloadService();
-        this.bondValidationService = new BondValidationService();
+        this.bondDataService = new BondDataService();
     }
 
     /**
@@ -76,7 +79,7 @@ public class BondYieldAnalyzer {
 
             // Analyze bonds and calculate yields with investment amount and maturity filter
             System.out.println();
-            List<BondEntry> bonds = analyzer.bondValidationService.filterBonds(govEntries, investmentAmount, maxDaysToMaturity);
+            List<BondEntry> bonds = analyzer.bondDataService.filterBonds(govEntries, investmentAmount, maxDaysToMaturity);
 
             // Display yield analysis results
             analyzer.displayYieldAnalysis(bonds, investmentAmount, maxDaysToMaturity);
@@ -88,7 +91,7 @@ public class BondYieldAnalyzer {
             // Save cache before exiting (also saves any unsaved changes on interruption)
             if (analyzer != null) {
                 try {
-                    analyzer.bondValidationService.saveCache();
+                    analyzer.bondDataService.saveCache();
                 } catch (Exception e) {
                     // Ignore cache save errors
                 }

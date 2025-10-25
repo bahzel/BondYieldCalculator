@@ -1,18 +1,20 @@
 package yield;
 
-import java.net.URI;
 import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import yield.cache.MaturityCache;
+import yield.scraping.BondbloxDataExtractor;
+import yield.scraping.ComdirectDataExtractor;
+import yield.scraping.YieldCalculator;
+
 /**
  * Service for handling HTTP requests and filtering bonds from web sources
  */
-public class BondValidationService {
+public class BondDataService {
 
     private final HttpClient httpClient;
     private final MaturityCache maturityCache;
@@ -20,7 +22,7 @@ public class BondValidationService {
     // Corporate bond name filters
     private static final String[] CORPORATE_BOND_MARKERS = {"Corp.", "Inc.", "Co."};
 
-    public BondValidationService() {
+    public BondDataService() {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .followRedirects(HttpClient.Redirect.NORMAL)
@@ -162,99 +164,43 @@ public class BondValidationService {
      * Checks if an ISIN is a bond and extracts bond data
      */
     public BondEntry isBondAndExtractData(String isin, BondEntry entry, double investmentAmount) {
-        try {
-            String url = "https://www.comdirect.de/inf/anleihen/" + isin;
+        // Try to fetch from comdirect first
+        ComdirectDataExtractor comdirectExtractor = new ComdirectDataExtractor(httpClient);
+        boolean isComplete = comdirectExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(15))
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-                    .header("Referer", "https://www.comdirect.de/")
-                    .GET()
-                    .build();
+        // If data is incomplete, try fallback to bondblox.com
+        if (!isComplete) {
+            System.out.println(); // New line for clarity
+            System.out.println("Attempting fallback to bondblox.com for " + isin + "...");
 
-            HttpResponse<String> response = sendRequestWithRetry(request, isin);
+            BondbloxDataExtractor bondbloxExtractor = new BondbloxDataExtractor(httpClient);
+            boolean fallbackSuccess = bondbloxExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
 
-            int statusCode = response.statusCode();
-            boolean isBond = statusCode == 200;
-
-            // Store HTTP 400 errors in cache to avoid repeated requests
-            if (statusCode == 400) {
-                maturityCache.storeHttp400Error(isin);
-            }
-
-            // Only log if status is not 200 (OK), 400 (Bad Request), or 404 (Not Found)
-            if (statusCode != 200 && statusCode != 400 && statusCode != 404) {
-                System.out.println(); // New line before error message
-                System.out.println("Checking ISIN: " + isin + " -> HTTP Status: " + statusCode);
-            }
-
-            if (isBond) {
-                // Parse HTML content and extract data with investment amount
-                String htmlContent = response.body();
-                BondDataExtractor extractor = new BondDataExtractor();
-                extractor.extractBondData(entry, htmlContent, investmentAmount);
-
-                // Store all bond data in cache for future use (even if it's a corporate bond)
-                maturityCache.storeBondData(
-                    isin,
-                    entry.getMaturityDate(),
-                    entry.getNominalInterestRate() >= 0 ? entry.getNominalInterestRate() : null,
-                    entry.getBondName()
-                );
-
-                return entry;
-            }
-
-            // Only log headers for unexpected status codes (not 400 or 404)
-            if (statusCode != 400 && statusCode != 404) {
-                System.out.println("  -> " + statusCode + " Response Headers:");
-                response.headers().map().forEach((key, value) ->
-                    System.out.println("     " + key + ": " + String.join(", ", value)));
-            }
-
-            return null;
-
-        } catch (Exception e) {
-            System.out.println(); // New line before error message
-            System.err.println("Error checking ISIN " + isin + ": " + e.getMessage());
-            return null;
-        }
-    }
-
-    /**
-     * Executes HTTP request with retry mechanism for timeouts
-     */
-    private HttpResponse<String> sendRequestWithRetry(HttpRequest request, String isin) {
-        var attempt = 0;
-        while (true) {
-            try {
-                attempt++;
-                // Only log retry attempts (not the first attempt)
-                if (attempt > 1) {
-                    System.out.println(); // New line before retry message
-                    System.out.println("  -> Retry attempt " + attempt + " for ISIN: " + isin);
-                }
-                return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            } catch (java.net.http.HttpTimeoutException e) {
-                System.out.println(); // New line before timeout message
-                System.out.println("  -> Timeout at attempt " + attempt + " for ISIN: " + isin);
-                // Wait before next attempt (exponential backoff)
-                try {
-                    int waitTime = 2000 * attempt; // 2s, 4s, 6s, etc.
-                    System.out.println("  -> Waiting " + waitTime + "ms before next attempt...");
-                    Thread.sleep(waitTime);
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException("Interrupted during retry wait time", ie);
-                }
-            } catch (Exception e) {
-                // Other errors (not timeout) throw immediately
-                System.out.println(); // New line before error message
-                System.err.println("  -> HTTP error for ISIN " + isin + ": " + e.getMessage());
-                throw new RuntimeException("HTTP error: " + e.getMessage(), e);
+            if (!fallbackSuccess) {
+                System.out.println("Fallback to bondblox.com failed for " + isin);
+                // Continue with incomplete data from comdirect
+            } else {
+                System.out.println("Successfully retrieved data from bondblox.com for " + isin);
             }
         }
+
+        // Check if we still don't have the essential data (after both comdirect and bondblox attempts)
+        if (entry.getMaturityDate() == null || entry.getMaturityDate().isEmpty()) {
+            // No data at all - likely HTTP 400 or 404
+            maturityCache.storeHttp400Error(isin);
+            return null;
+        }
+
+        // Store all bond data in cache for future use (even if it's a corporate bond)
+        maturityCache.storeBondData(
+            isin,
+            entry.getMaturityDate(),
+            entry.getNominalInterestRate() >= 0 ? entry.getNominalInterestRate() : null,
+            entry.getBondName()
+        );
+
+        return entry;
     }
 }
+
 
