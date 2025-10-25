@@ -11,19 +11,18 @@ import yield.BondEntry;
 /**
  * Service for extracting bond data from comdirect.de
  */
-public class ComdirectDataExtractor {
-
-    private final HttpClient httpClient;
+public class ComdirectDataExtractor extends BondDataExtractor {
 
     public ComdirectDataExtractor(HttpClient httpClient) {
-        this.httpClient = httpClient;
+        super(httpClient);
     }
 
     /**
      * Fetches and extracts bond data from comdirect.de
-     * Returns true if data extraction was successful and complete, false if incomplete or failed
+     * Returns ExtractionResult indicating the outcome
      */
-    public boolean fetchAndExtractBondData(String isin, BondEntry entry, double investmentAmount) {
+    @Override
+    public ExtractionResult fetchAndExtractBondData(String isin, BondEntry entry, double investmentAmount) {
         try {
             String url = "https://www.comdirect.de/inf/anleihen/" + isin;
 
@@ -48,25 +47,24 @@ public class ComdirectDataExtractor {
             if (statusCode == 200) {
                 // Parse HTML content and extract data with investment amount
                 String htmlContent = response.body();
-                return extractBondData(entry, htmlContent, investmentAmount);
-            } else if (statusCode == 400) {
-                // Return false to indicate HTTP 400 error (will be cached)
-                return false;
+                boolean isComplete = extractBondData(entry, htmlContent, investmentAmount);
+                return isComplete ? ExtractionResult.COMPLETE : ExtractionResult.INCOMPLETE;
+            } else if (statusCode == 400 || statusCode == 404) {
+                // Return NOT_FOUND for HTTP 400/404 errors (will be cached)
+                return ExtractionResult.NOT_FOUND;
             }
 
             // Log headers for unexpected status codes (not 400 or 404)
-            if (statusCode != 404) {
-                System.out.println("  -> " + statusCode + " Response Headers:");
-                response.headers().map().forEach((key, value) ->
-                    System.out.println("     " + key + ": " + String.join(", ", value)));
-            }
+            System.out.println("  -> " + statusCode + " Response Headers:");
+            response.headers().map().forEach((key, value) ->
+                System.out.println("     " + key + ": " + String.join(", ", value)));
 
-            return false;
+            return ExtractionResult.ERROR;
 
         } catch (Exception e) {
             System.out.println(); // New line before error message
             System.err.println("Error checking ISIN " + isin + ": " + e.getMessage());
-            return false;
+            return ExtractionResult.ERROR;
         }
     }
 
@@ -86,11 +84,8 @@ public class ComdirectDataExtractor {
 
             if (matcher.find()) {
                 String maturity = matcher.group(1).trim();
-                entry.setMaturityDate(maturity);
-
-                // Calculate remaining days (precise via date)
-                int remainingDays = DateCalculator.calculateRemainingDays(maturity);
-                entry.setRemainingDays(remainingDays);
+                // Use common method from base class
+                setMaturityAndCalculateRemainingDays(entry, maturity);
             } else {
                 // Extended fallback patterns for different HTML variants
                 String[] fallbackPatterns = {
@@ -104,10 +99,8 @@ public class ComdirectDataExtractor {
                     matcher = pattern.matcher(htmlContent);
                     if (matcher.find()) {
                         String maturity = matcher.group(1).trim();
-                        entry.setMaturityDate(maturity);
-
-                        int remainingDays = DateCalculator.calculateRemainingDays(maturity);
-                        entry.setRemainingDays(remainingDays);
+                        // Use common method from base class
+                        setMaturityAndCalculateRemainingDays(entry, maturity);
                         break;
                     }
                 }
@@ -116,20 +109,8 @@ public class ComdirectDataExtractor {
             // Extract nominal interest rate
             extractNominalInterestRate(entry, htmlContent);
 
-            // Take ask price from original CSV data (askPrice)
-            try {
-                double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
-                entry.setAskPriceValue(askPrice);
-
-                // Calculate yield based on investment amount - now also works for zero-coupon bonds (0% nominal rate)
-                if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() >= 0) {
-                    double yield = YieldCalculator.calculateYieldForInvestment(askPrice, entry.getNominalInterestRate(),
-                                                entry.getRemainingDays(), investmentAmount);
-                    entry.setYield(yield);
-                }
-            } catch (NumberFormatException e) {
-                System.err.println("Error parsing ask price from CSV for " + entry.getIsin() + ": " + entry.getAskPrice());
-            }
+            // Calculate and set yield using common method from base class
+            calculateAndSetYield(entry, investmentAmount);
 
         } catch (Exception e) {
             System.err.println("Error extracting bond data for " + entry.getIsin() + ": " + e.getMessage());

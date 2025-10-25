@@ -11,19 +11,18 @@ import yield.BondEntry;
 /**
  * Service for extracting bond data from bondblox.com HTML content
  */
-public class BondbloxDataExtractor {
-
-    private final HttpClient httpClient;
+public class BondbloxDataExtractor extends BondDataExtractor {
 
     public BondbloxDataExtractor(HttpClient httpClient) {
-        this.httpClient = httpClient;
+        super(httpClient);
     }
 
     /**
      * Fetches and extracts bond data from bondblox.com
-     * Returns true if successful, false otherwise
+     * Returns ExtractionResult indicating the outcome
      */
-    public boolean fetchAndExtractBondData(String isin, BondEntry entry, double investmentAmount) {
+    @Override
+    public ExtractionResult fetchAndExtractBondData(String isin, BondEntry entry, double investmentAmount) {
         try {
             // bondblox.com URL format: https://bondblox.com/bond-market/[ISIN]
             // Example: US06407FAH55 -> https://bondblox.com/bond-market/US06407FAH55
@@ -52,16 +51,27 @@ public class BondbloxDataExtractor {
                 // Verify that we got the essential data
                 boolean hasMaturity = entry.getMaturityDate() != null && !entry.getMaturityDate().isEmpty();
                 boolean hasCoupon = entry.getNominalInterestRate() >= 0;
+                boolean isComplete = hasMaturity && hasCoupon;
 
-                return hasMaturity && hasCoupon;
+                if (isComplete) {
+                    System.out.println("  -> Bondblox: Daten vollständig für " + isin);
+                    return ExtractionResult.COMPLETE;
+                } else {
+                    System.out.println("  -> Bondblox: Daten unvollständig für " + isin +
+                                     " (Maturity: " + hasMaturity + ", Coupon: " + hasCoupon + ")");
+                    return ExtractionResult.INCOMPLETE;
+                }
+            } else if (response.statusCode() == 404) {
+                System.out.println("  -> Bondblox: Abruf fehlgeschlagen für " + isin + " (HTTP 404)");
+                return ExtractionResult.NOT_FOUND;
             } else {
-                System.out.println("  -> bondblox.com returned HTTP " + response.statusCode() + " for " + isin);
-                return false;
+                System.out.println("  -> Bondblox: Abruf fehlgeschlagen für " + isin + " (HTTP " + response.statusCode() + ")");
+                return ExtractionResult.ERROR;
             }
 
         } catch (Exception e) {
-            System.err.println("  -> Error fetching from bondblox.com for " + isin + ": " + e.getMessage());
-            return false;
+            System.out.println("  -> Bondblox: Abruf fehlgeschlagen für " + isin + " (" + e.getMessage() + ")");
+            return ExtractionResult.ERROR;
         }
     }
 
@@ -69,58 +79,35 @@ public class BondbloxDataExtractor {
      * Extracts bond data from bondblox.com HTML and calculates remaining time and yield
      */
     private void extractBondData(BondEntry entry, String htmlContent, double investmentAmount) {
-        try {
-            // Extract bond name - bondblox doesn't provide it directly, use ISIN as fallback
-            // The page title or issuer info could be extracted if needed
+        // Extract bond name - bondblox doesn't provide it directly, use ISIN as fallback
+        // The page title or issuer info could be extracted if needed
 
-            // Extract maturity date from "Maturity Date" field
-            extractMaturityDate(entry, htmlContent);
+        // Extract maturity date from "Maturity Date" field
+        extractMaturityDate(entry, htmlContent);
 
-            // Extract coupon rate from "Current Coupon" field
-            extractCouponRate(entry, htmlContent);
+        // Extract coupon rate from "Current Coupon" field
+        extractCouponRate(entry, htmlContent);
 
-            // Take ask price from original CSV data (askPrice)
-            try {
-                double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
-                entry.setAskPriceValue(askPrice);
-
-                // Calculate yield based on investment amount
-                if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() >= 0) {
-                    double yield = YieldCalculator.calculateYieldForInvestment(askPrice, entry.getNominalInterestRate(),
-                                                entry.getRemainingDays(), investmentAmount);
-                    entry.setYield(yield);
-                }
-            } catch (NumberFormatException e) {
-                System.err.println("Error parsing ask price from CSV for " + entry.getIsin() + ": " + entry.getAskPrice());
-            }
-
-        } catch (Exception e) {
-            System.err.println("Error extracting bond data from bondblox.com for " + entry.getIsin() + ": " + e.getMessage());
-        }
+        // Calculate and set yield using common method from base class
+        calculateAndSetYield(entry, investmentAmount);
     }
 
     /**
      * Extracts maturity date from bondblox.com HTML
      */
     private void extractMaturityDate(BondEntry entry, String htmlContent) {
-        try {
-            // Pattern: <div>Maturity Date</div><div class="bondinfo_bondInfoVal__Qn2Uv">DD/MM/YYYY</div>
-            String maturityPattern = "<div>Maturity Date</div>\\s*<div[^>]*class=\"[^\"]*bondinfo_bondInfoVal[^\"]*\"[^>]*>([0-9]{2}/[0-9]{2}/[0-9]{4})</div>";
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(maturityPattern);
-            java.util.regex.Matcher matcher = pattern.matcher(htmlContent);
+        // Pattern: <div>Maturity Date</div><div class="bondinfo_bondInfoVal__Qn2Uv">DD/MM/YYYY</div>
+        String maturityPattern = "<div>Maturity Date</div>\\s*<div[^>]*class=\"[^\"]*bondinfo_bondInfoVal[^\"]*\"[^>]*>([0-9]{2}/[0-9]{2}/[0-9]{4})</div>";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(maturityPattern);
+        java.util.regex.Matcher matcher = pattern.matcher(htmlContent);
 
-            if (matcher.find()) {
-                String maturityStr = matcher.group(1).trim();
-                // Convert from DD/MM/YYYY to DD.MM.YYYY format
-                String maturity = maturityStr.replace("/", ".");
-                entry.setMaturityDate(maturity);
+        if (matcher.find()) {
+            String maturityStr = matcher.group(1).trim();
+            // Convert from DD/MM/YYYY to DD.MM.YYYY format
+            String maturity = maturityStr.replace("/", ".");
 
-                // Calculate remaining days
-                int remainingDays = DateCalculator.calculateRemainingDays(maturity);
-                entry.setRemainingDays(remainingDays);
-            }
-        } catch (Exception e) {
-            System.err.println("Error extracting maturity date from bondblox.com for " + entry.getIsin() + ": " + e.getMessage());
+            // Use common method from base class
+            setMaturityAndCalculateRemainingDays(entry, maturity);
         }
     }
 
@@ -128,21 +115,17 @@ public class BondbloxDataExtractor {
      * Extracts coupon rate from bondblox.com HTML
      */
     private void extractCouponRate(BondEntry entry, String htmlContent) {
-        try {
-            // Pattern: <div>Current Coupon</div><div class="bondinfo_bondInfoVal__Qn2Uv">X.XXX%</div>
-            String couponPattern = "<div>Current Coupon</div>\\s*<div[^>]*class=\"[^\"]*bondinfo_bondInfoVal[^\"]*\"[^>]*>([0-9.,]+)%</div>";
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(couponPattern);
-            java.util.regex.Matcher matcher = pattern.matcher(htmlContent);
+        // Pattern: <div>Current Coupon</div><div class="bondinfo_bondInfoVal__Qn2Uv">X.XXX%</div>
+        String couponPattern = "<div>Current Coupon</div>\\s*<div[^>]*class=\"[^\"]*bondinfo_bondInfoVal[^\"]*\"[^>]*>([0-9.,]+)%</div>";
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(couponPattern);
+        java.util.regex.Matcher matcher = pattern.matcher(htmlContent);
 
-            if (matcher.find()) {
-                String couponStr = matcher.group(1).replace(",", ".");
-                // Remove thousand separators if present
-                couponStr = couponStr.replace("'", "");
-                double couponRate = Double.parseDouble(couponStr);
-                entry.setNominalInterestRate(couponRate);
-            }
-        } catch (Exception e) {
-            System.err.println("Error extracting coupon rate from bondblox.com for " + entry.getIsin() + ": " + e.getMessage());
+        if (matcher.find()) {
+            String couponStr = matcher.group(1).replace(",", ".");
+            // Remove thousand separators if present
+            couponStr = couponStr.replace("'", "");
+            double couponRate = Double.parseDouble(couponStr);
+            entry.setNominalInterestRate(couponRate);
         }
     }
 }

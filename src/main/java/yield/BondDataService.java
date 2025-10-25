@@ -166,28 +166,22 @@ public class BondDataService {
     public BondEntry isBondAndExtractData(String isin, BondEntry entry, double investmentAmount) {
         // Try to fetch from comdirect first
         ComdirectDataExtractor comdirectExtractor = new ComdirectDataExtractor(httpClient);
-        boolean isComplete = comdirectExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
+        yield.scraping.ExtractionResult comdirectResult = comdirectExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
 
-        // If data is incomplete, try fallback to bondblox.com
-        if (!isComplete) {
-            System.out.println(); // New line for clarity
-            System.out.println("Attempting fallback to bondblox.com for " + isin + "...");
-
+        // If data is incomplete or not found, try fallback to bondblox.com
+        if (comdirectResult != yield.scraping.ExtractionResult.COMPLETE) {
             BondbloxDataExtractor bondbloxExtractor = new BondbloxDataExtractor(httpClient);
-            boolean fallbackSuccess = bondbloxExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
-
-            if (!fallbackSuccess) {
-                System.out.println("Fallback to bondblox.com failed for " + isin);
-                // Continue with incomplete data from comdirect
-            } else {
-                System.out.println("Successfully retrieved data from bondblox.com for " + isin);
-            }
+            bondbloxExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
+            // Bondblox extractor logs the result itself
         }
 
         // Check if we still don't have the essential data (after both comdirect and bondblox attempts)
         if (entry.getMaturityDate() == null || entry.getMaturityDate().isEmpty()) {
-            // No data at all - likely HTTP 400 or 404
-            maturityCache.storeHttp400Error(isin);
+            // Only cache as HTTP 400/404 error if comdirect explicitly returned NOT_FOUND
+            // (not if comdirect returned incomplete data or had other errors)
+            if (comdirectResult == yield.scraping.ExtractionResult.NOT_FOUND) {
+                maturityCache.storeHttp400Error(isin);
+            }
             return null;
         }
 
