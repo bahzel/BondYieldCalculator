@@ -21,7 +21,7 @@ public class BondDataService {
     private final MaturityCache maturityCache;
 
     // Corporate bond name filters
-    private static final String[] CORPORATE_BOND_MARKERS = {"Corp.", "Inc.", "Co."};
+    private static final String[] CORPORATE_BOND_MARKERS = {"Corp.", "Inc.", "Co.", "S.A."};
 
     public BondDataService() {
         this.httpClient = HttpClient.newBuilder()
@@ -215,7 +215,7 @@ public class BondDataService {
 
             if (result == ExtractionResult.NOT_FOUND) {
                 // 400/404 error - try next extractor if available
-                if (extractorIndex == 0 && extractorIndex < extractors.size() - 1) {
+                if (extractorIndex == 0) {
                     System.out.println("Attempting fallback to next source for " + isin + "...");
                 }
                 extractorIndex++;
@@ -294,6 +294,15 @@ public class BondDataService {
             entry.getNominalInterestRate() >= 0 ? entry.getNominalInterestRate() : null,
             entry.getBondName()
         );
+
+        // Log if we're caching partial data
+        boolean isPartialData = !isDataComplete(entry);
+        if (isPartialData) {
+            System.out.println("  -> Caching partial data for " + isin +
+                             " (Maturity: " + (entry.getMaturityDate() != null && !entry.getMaturityDate().isEmpty()) +
+                             ", Coupon: " + (entry.getNominalInterestRate() >= 0) +
+                             ", Name: " + (entry.getBondName() != null && !entry.getBondName().isEmpty() && !entry.getBondName().equals("Unknown Bond")) + ")");
+        }
 
         return entry;
     }
