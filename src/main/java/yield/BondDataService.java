@@ -178,102 +178,107 @@ public class BondDataService {
 
     /**
      * Checks if an ISIN is a bond and extracts bond data
+     * Uses multiple extractors in sequence until data is complete or all extractors are exhausted
      */
     public BondEntry isBondAndExtractData(String isin, BondEntry entry, double investmentAmount) {
-        // Try to fetch from comdirect first
-        ComdirectDataExtractor comdirectExtractor = new ComdirectDataExtractor(httpClient);
-        yield.scraping.ExtractionResult comdirectResult = comdirectExtractor.fetchAndExtractBondData(isin, entry, investmentAmount);
+        // Define the order of extractors to use
+        java.util.List<yield.scraping.BondDataExtractor> extractors = java.util.Arrays.asList(
+            new ComdirectDataExtractor(httpClient),
+            new BondbloxDataExtractor(httpClient)
+        );
 
-        // Determine if we need to check Bondblox
-        boolean needsBondblox = false;
+        String[] extractorNames = {"Comdirect", "Bondblox"};
 
-        if (comdirectResult == yield.scraping.ExtractionResult.NOT_FOUND) {
-            // Case 1: Comdirect returned 400/404 - always check Bondblox
-            needsBondblox = true;
-            System.out.println("Attempting fallback to bondblox.com for " + isin + "...");
-        } else if (comdirectResult == yield.scraping.ExtractionResult.INCOMPLETE) {
-            // Case 2: Comdirect returned partial data - check Bondblox for merge
-            needsBondblox = true;
-            System.out.println("Attempting to complete data from bondblox.com for " + isin + "...");
-        }
-        // Case 3: If comdirectResult is COMPLETE, we don't check Bondblox
+        boolean allExtractorsFailed = true;
+        int extractorIndex = 0;
 
-        ExtractionResult bondbloxResult;
-        BondEntry bondbloxEntry;
+        for (yield.scraping.BondDataExtractor extractor : extractors) {
+            String extractorName = extractorNames[extractorIndex];
 
-        if (needsBondblox) {
-            // Save comdirect data if any
-            String comdirectMaturity = entry.getMaturityDate();
-            double comdirectCoupon = entry.getNominalInterestRate();
-            String comdirectName = entry.getBondName();
+            // Check if we already have complete data
+            if (isDataComplete(entry)) {
+                // Data is complete, no need to try more extractors
+                break;
+            }
 
-            // Create a temporary entry for Bondblox to fill
-            bondbloxEntry = new BondEntry(isin, entry.getTimestamp(), entry.getCurrency(),
-                                         entry.getBidPrice(), entry.getAskPrice());
-            BondbloxDataExtractor bondbloxExtractor = new BondbloxDataExtractor(httpClient);
-            bondbloxResult = bondbloxExtractor.fetchAndExtractBondData(isin, bondbloxEntry, investmentAmount);
+            // Save current state before trying this extractor
+            String currentMaturity = entry.getMaturityDate();
+            double currentCoupon = entry.getNominalInterestRate();
+            String currentName = entry.getBondName();
 
-            if (comdirectResult == yield.scraping.ExtractionResult.NOT_FOUND) {
-                // Case 1: Comdirect had 400/404
-                if (bondbloxResult == yield.scraping.ExtractionResult.NOT_FOUND) {
-                    // Case 1a: Both failed - cache as HTTP_400_ERROR and skip
-                    System.out.println("  -> Both sources failed for " + isin + " - caching as HTTP_400_ERROR");
-                    maturityCache.storeHttp400Error(isin);
-                    return null;
-                } else if (bondbloxResult == yield.scraping.ExtractionResult.COMPLETE ||
-                           bondbloxResult == yield.scraping.ExtractionResult.INCOMPLETE) {
-                    // Case 1b: Bondblox has data (even if incomplete) - use it
-                    System.out.println("  -> Using Bondblox data for " + isin);
-                    entry.setMaturityDate(bondbloxEntry.getMaturityDate());
-                    entry.setRemainingDays(bondbloxEntry.getRemainingDays());
-                    if (bondbloxEntry.getNominalInterestRate() >= 0) {
-                        entry.setNominalInterestRate(bondbloxEntry.getNominalInterestRate());
-                    }
-                    if (bondbloxEntry.getBondName() != null && !bondbloxEntry.getBondName().isEmpty()) {
-                        entry.setBondName(bondbloxEntry.getBondName());
-                    }
-                    entry.setYield(bondbloxEntry.getYield());
+            // Create a temporary entry for this extractor to fill
+            BondEntry tempEntry = new BondEntry(isin, entry.getTimestamp(), entry.getCurrency(),
+                                               entry.getBidPrice(), entry.getAskPrice());
+
+            // Try to extract data
+            ExtractionResult result = extractor.fetchAndExtractBondData(isin, tempEntry, investmentAmount);
+
+            if (result == ExtractionResult.NOT_FOUND) {
+                // 400/404 error - try next extractor if available
+                if (extractorIndex == 0 && extractorIndex < extractors.size() - 1) {
+                    System.out.println("Attempting fallback to next source for " + isin + "...");
                 }
-            } else {
-                // Case 2: Comdirect had partial data
-                if (bondbloxResult == yield.scraping.ExtractionResult.NOT_FOUND) {
-                    // Case 2a: Bondblox failed - use Comdirect data
-                    System.out.println("  -> Bondblox failed, using Comdirect data for " + isin);
-                    // Data is already in entry from comdirect
-                } else if (bondbloxResult == yield.scraping.ExtractionResult.COMPLETE ||
-                           bondbloxResult == yield.scraping.ExtractionResult.INCOMPLETE) {
-                    // Case 2b: Bondblox has data - merge (fill in missing fields only)
-                    System.out.println("  -> Merging Comdirect and Bondblox data for " + isin);
+                extractorIndex++;
+                continue;
+            } else if (result == ExtractionResult.ERROR) {
+                // Other error - try next extractor if available
+                extractorIndex++;
+                continue;
+            }
 
-                    // Only override if comdirect didn't have it
-                    if (comdirectMaturity == null || comdirectMaturity.isEmpty()) {
-                        entry.setMaturityDate(bondbloxEntry.getMaturityDate());
-                        entry.setRemainingDays(bondbloxEntry.getRemainingDays());
-                    }
-                    if (comdirectCoupon < 0 && bondbloxEntry.getNominalInterestRate() >= 0) {
-                        entry.setNominalInterestRate(bondbloxEntry.getNominalInterestRate());
-                    }
-                    if ((comdirectName == null || comdirectName.isEmpty() || comdirectName.equals("Unknown Bond")) &&
-                        bondbloxEntry.getBondName() != null && !bondbloxEntry.getBondName().isEmpty()) {
-                        entry.setBondName(bondbloxEntry.getBondName());
-                    }
+            // We got some data (COMPLETE or INCOMPLETE)
 
-                    // Recalculate yield with merged data
-                    try {
-                        double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
-                        entry.setAskPriceValue(askPrice);
+            allExtractorsFailed = false;
 
-                        if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() >= 0) {
-                            double yield = YieldCalculator.calculateYieldForInvestment(
-                                askPrice, entry.getNominalInterestRate(),
-                                entry.getRemainingDays(), investmentAmount);
-                            entry.setYield(yield);
-                        }
-                    } catch (NumberFormatException e) {
-                        System.err.println("Error parsing ask price for " + isin);
-                    }
+            if (extractorIndex > 0 && result == ExtractionResult.INCOMPLETE) {
+                System.out.println("  -> " + extractorName + " provided partial data for " + isin);
+            } else if (extractorIndex > 0 && result == ExtractionResult.COMPLETE) {
+                System.out.println("  -> " + extractorName + " provided complete data for " + isin);
+            }
+
+            // Merge data: only fill in missing fields
+            if (currentMaturity == null || currentMaturity.isEmpty()) {
+                if (tempEntry.getMaturityDate() != null && !tempEntry.getMaturityDate().isEmpty()) {
+                    entry.setMaturityDate(tempEntry.getMaturityDate());
+                    entry.setRemainingDays(tempEntry.getRemainingDays());
                 }
             }
+
+            if (currentCoupon < 0) {
+                if (tempEntry.getNominalInterestRate() >= 0) {
+                    entry.setNominalInterestRate(tempEntry.getNominalInterestRate());
+                }
+            }
+
+            if (currentName == null || currentName.isEmpty() || currentName.equals("Unknown Bond")) {
+                if (tempEntry.getBondName() != null && !tempEntry.getBondName().isEmpty()) {
+                    entry.setBondName(tempEntry.getBondName());
+                }
+            }
+
+            // Recalculate yield with current data
+            if (entry.getRemainingDays() > 0 && entry.getNominalInterestRate() >= 0) {
+                try {
+                    double askPrice = Double.parseDouble(entry.getAskPrice().replace(",", "."));
+                    entry.setAskPriceValue(askPrice);
+                    double yield = YieldCalculator.calculateYieldForInvestment(
+                        askPrice, entry.getNominalInterestRate(),
+                        entry.getRemainingDays(), investmentAmount);
+                    entry.setYield(yield);
+                } catch (NumberFormatException e) {
+                    System.err.println("Error parsing ask price for " + isin);
+                }
+            }
+
+            extractorIndex++;
+        }
+
+        // Check results after trying all extractors
+        if (allExtractorsFailed) {
+            // All extractors returned NOT_FOUND - cache as HTTP_400_ERROR
+            System.out.println("  -> All sources failed for " + isin + " - caching as HTTP_400_ERROR");
+            maturityCache.storeHttp400Error(isin);
+            return null;
         }
 
         // Check if we have the essential data after all attempts
@@ -291,6 +296,17 @@ public class BondDataService {
         );
 
         return entry;
+    }
+
+    /**
+     * Checks if a BondEntry has complete data (maturity, coupon, and name)
+     */
+    private boolean isDataComplete(BondEntry entry) {
+        boolean hasMaturity = entry.getMaturityDate() != null && !entry.getMaturityDate().isEmpty();
+        boolean hasCoupon = entry.getNominalInterestRate() >= 0;
+        boolean hasName = entry.getBondName() != null && !entry.getBondName().isEmpty()
+                         && !entry.getBondName().equals("Unknown Bond");
+        return hasMaturity && hasCoupon && hasName;
     }
 }
 
