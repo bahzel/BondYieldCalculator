@@ -59,6 +59,7 @@ public class BondYieldAnalyzer {
      */
     public static void main(String[] args) {
         String csvFilePath = null;
+        boolean isDownloadedFile = false;
         BondYieldAnalyzer analyzer = null;
 
         try {
@@ -76,8 +77,11 @@ public class BondYieldAnalyzer {
             // Ask user if they want to recheck cached HTTP 400 errors
             analyzer.askRecheckHttp400Errors();
 
-            // Download the latest CSV file from gettex.de
-            csvFilePath = analyzer.csvDownloadService.downloadLatestCsvFile();
+            // Get CSV file path (download or local)
+            csvFilePath = analyzer.getCsvFilePath();
+            // Check if it's a temporary file (downloaded files are in temp directory)
+            isDownloadedFile = csvFilePath.contains(System.getProperty("java.io.tmpdir")) ||
+                               csvFilePath.contains("AppData\\Local\\Temp");
 
             System.out.println("Reading CSV file: " + csvFilePath);
             Map<String, BondEntry> latestEntries = analyzer.csvReaderService.readCsvFile(csvFilePath);
@@ -115,8 +119,8 @@ public class BondYieldAnalyzer {
                 }
             }
             
-            // Clean up temporary file
-            if (csvFilePath != null) {
+            // Clean up temporary file (only if it was downloaded)
+            if (csvFilePath != null && isDownloadedFile) {
                 try {
                     new CsvDownloadService().deleteTempFile(csvFilePath);
                 } catch (Exception e) {
@@ -255,6 +259,62 @@ public class BondYieldAnalyzer {
             System.out.println("Keeping cached HTTP 400/404 errors. These ISINs will be skipped.");
         }
         System.out.println();
+    }
+
+    /**
+     * Asks user if they want to download CSV or use local file
+     * Returns the path to the CSV file (either downloaded or local)
+     */
+    private String getCsvFilePath() throws IOException {
+        Scanner scanner = new Scanner(System.in);
+        boolean validInput = false;
+        String csvFilePath = null;
+
+        while (!validInput) {
+            System.out.print("Do you want to download the CSV from gettex.de or use a local file? (download/local): ");
+            String input = scanner.nextLine().trim().toLowerCase();
+
+            if (input.equals("download") || input.equals("d")) {
+                // Download CSV
+                System.out.println("Note: On Sundays, no file is available for download from gettex.de.");
+                csvFilePath = csvDownloadService.downloadLatestCsvFile();
+                validInput = true;
+            } else if (input.equals("local") || input.equals("l")) {
+                // Use local file
+                boolean fileFound = false;
+                while (!fileFound) {
+                    System.out.print("Please enter the path to your local CSV file: ");
+                    String filePath = scanner.nextLine().trim();
+
+                    // Remove quotes if user wrapped path in quotes
+                    if (filePath.startsWith("\"") && filePath.endsWith("\"")) {
+                        filePath = filePath.substring(1, filePath.length() - 1);
+                    }
+
+                    java.io.File file = new java.io.File(filePath);
+                    if (file.exists() && file.isFile()) {
+                        csvFilePath = filePath;
+                        fileFound = true;
+                        validInput = true;
+                        System.out.println("Using local file: " + csvFilePath);
+                    } else {
+                        System.out.println("File not found or not a file. Please try again.");
+                        System.out.print("Try again or switch to download? (retry/download): ");
+                        String retry = scanner.nextLine().trim().toLowerCase();
+                        if (retry.equals("download") || retry.equals("d")) {
+                            csvFilePath = csvDownloadService.downloadLatestCsvFile();
+                            fileFound = true;
+                            validInput = true;
+                        }
+                    }
+                }
+            } else {
+                System.out.println("Invalid input. Please enter 'download' or 'local'.");
+            }
+        }
+
+        System.out.println();
+        return csvFilePath;
     }
 
     /**
