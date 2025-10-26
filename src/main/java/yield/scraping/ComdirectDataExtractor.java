@@ -121,15 +121,7 @@ public class ComdirectDataExtractor extends BondDataExtractor {
         boolean hasCoupon = entry.getNominalInterestRate() >= 0;
         boolean hasName = entry.getBondName() != null && !entry.getBondName().isEmpty() && !entry.getBondName().equals("Unknown Bond");
         
-        boolean isComplete = hasMaturity && hasCoupon && hasName;
-        
-        if (!isComplete) {
-            System.out.println(); // New line for clarity
-            System.out.println("Incomplete data from comdirect for " + entry.getIsin() + 
-                             " (Maturity: " + hasMaturity + ", Coupon: " + hasCoupon + ", Name: " + hasName + ")");
-        }
-        
-        return isComplete;
+        return hasMaturity && hasCoupon && hasName;
     }
 
     /**

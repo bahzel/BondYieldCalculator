@@ -53,24 +53,14 @@ public class BondbloxDataExtractor extends BondDataExtractor {
                 boolean hasCoupon = entry.getNominalInterestRate() >= 0;
                 boolean isComplete = hasMaturity && hasCoupon;
 
-                if (isComplete) {
-                    System.out.println("  -> Bondblox: Data complete for " + isin);
-                    return ExtractionResult.COMPLETE;
-                } else {
-                    System.out.println("  -> Bondblox: Data incomplete for " + isin +
-                                     " (Maturity: " + hasMaturity + ", Coupon: " + hasCoupon + ")");
-                    return ExtractionResult.INCOMPLETE;
-                }
-            } else if (response.statusCode() == 404) {
-                System.out.println("  -> Bondblox: Request failed for " + isin + " (HTTP 404)");
+                return isComplete ? ExtractionResult.COMPLETE : ExtractionResult.INCOMPLETE;
+            } else if (response.statusCode() == 404 || response.statusCode() == 400) {
                 return ExtractionResult.NOT_FOUND;
             } else {
-                System.out.println("  -> Bondblox: Request failed for " + isin + " (HTTP " + response.statusCode() + ")");
                 return ExtractionResult.ERROR;
             }
 
         } catch (Exception e) {
-            System.out.println("  -> Bondblox: Request failed for " + isin + " (" + e.getMessage() + ")");
             return ExtractionResult.ERROR;
         }
     }
