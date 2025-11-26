@@ -5,6 +5,7 @@ import java.net.*;
 import java.nio.file.*;
 import java.util.regex.*;
 import java.util.zip.*;
+import yield.util.SslUtils;
 
 public class CsvDownloadService {
     private static final String PAGE_URL = "https://www.gettex.de/handel/delayed-data/pretrade-data/";
@@ -12,6 +13,7 @@ public class CsvDownloadService {
         "<a href=\"(https://erdk\\.bayerische-boerse\\.de/\\?u=edd-MUNCD&amp;p=public&amp;path=/pretrade/pretrade\\.[^\"]+?mund\\.csv\\.gz)\"", Pattern.CASE_INSENSITIVE);
 
     public String fetchLatestCsvUrl() throws IOException {
+        SslUtils.configureTrustAllCertificates();
         URL url = new URL(PAGE_URL);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestProperty("User-Agent", "Mozilla/5.0");

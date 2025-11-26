@@ -11,6 +11,7 @@ import yield.scraping.BondbloxDataExtractor;
 import yield.scraping.ComdirectDataExtractor;
 import yield.scraping.ExtractionResult;
 import yield.scraping.YieldCalculator;
+import yield.util.SslUtils;
 
 /**
  * Service for handling HTTP requests and filtering bonds from web sources
@@ -24,6 +25,9 @@ public class BondDataService {
     private static final String[] CORPORATE_BOND_MARKERS = {"Corp.", "Inc.", "Co.", "S.A."};
 
     public BondDataService() {
+        // Configure SSL to trust all certificates (needed for some bond data sources)
+        SslUtils.configureTrustAllCertificates();
+
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .followRedirects(HttpClient.Redirect.NORMAL)
